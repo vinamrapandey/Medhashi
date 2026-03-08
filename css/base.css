@@ -1,0 +1,222 @@
+/* ============================================
+   AS WEDDING — Base Styles
+   Reset, viewport lock, desktop frame, transitions
+   ============================================ */
+
+/* ---- Reset ---- */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: var(--font-body);
+    font-size: var(--fs-base);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-normal);
+    color: var(--text-primary);
+    background-color: var(--cream);
+    overflow-x: hidden;
+    min-height: 100dvh;
+}
+
+img,
+video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button {
+    font-family: inherit;
+    font-size: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+input {
+    font-family: inherit;
+    font-size: inherit;
+    border: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+ul,
+ol {
+    list-style: none;
+}
+
+/* ---- Mobile-First Viewport Lock ---- */
+.app-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100dvh;
+    background: var(--cream);
+}
+
+.app-container {
+    position: relative;
+    width: 100%;
+    max-width: var(--app-max-width);
+    min-height: 100dvh;
+    background-color: var(--ivory);
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.app-container::-webkit-scrollbar {
+    display: none;
+}
+
+/* Desktop frame styling */
+@media (min-width: 480px) {
+    body {
+        background: linear-gradient(135deg, var(--cream) 0%, #EDE7DB 50%, var(--cream) 100%);
+    }
+
+    .app-wrapper {
+        padding: 0;
+        align-items: center;
+    }
+
+    .app-container {
+        min-height: 100dvh;
+        max-height: 100dvh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-desktop-frame);
+        border-left: 1px solid var(--gold-light);
+        border-right: 1px solid var(--gold-light);
+    }
+}
+
+/* ---- Screen Container ---- */
+.screen {
+    display: none;
+    opacity: 0;
+    min-height: 100dvh;
+    padding-bottom: calc(var(--space-xl) + var(--safe-area-bottom));
+}
+
+.screen.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.screen.fade-in {
+    animation: fadeSlideIn var(--duration-normal) var(--ease-smooth) forwards;
+}
+
+.screen.fade-out {
+    animation: fadeSlideOut var(--duration-normal) var(--ease-smooth) forwards;
+}
+
+/* ---- Page Transitions ---- */
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeSlideOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-12px);
+    }
+}
+
+/* ---- Scrollable sections (screens 2-4 flow) ---- */
+.scroll-section {
+    min-height: auto;
+    padding: var(--space-2xl) var(--content-padding);
+}
+
+/* ---- Utility Classes ---- */
+.text-center {
+    text-align: center;
+}
+
+.text-left {
+    text-align: left;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- Hindi Text ---- */
+.text-hindi {
+    font-family: var(--font-hindi);
+}
+
+/* ---- Heading Styles ---- */
+.heading-royal {
+    font-family: var(--font-heading);
+    font-weight: var(--fw-medium);
+    letter-spacing: var(--ls-wide);
+    line-height: var(--lh-tight);
+    color: var(--text-primary);
+}
+
+.heading-script {
+    font-family: var(--font-heading-alt);
+    font-weight: var(--fw-light);
+    font-style: italic;
+    letter-spacing: var(--ls-wide);
+    line-height: var(--lh-snug);
+    color: var(--text-light);
+}
+
+/* ---- Selection Color ---- */
+::selection {
+    background: var(--dusty-rose);
+    color: var(--white);
+}
+
+::-moz-selection {
+    background: var(--dusty-rose);
+    color: var(--white);
+}
