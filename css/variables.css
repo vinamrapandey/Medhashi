@@ -1,0 +1,126 @@
+/* ============================================
+   AS WEDDING — Design Tokens
+   ============================================ */
+
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&family=Tiro+Devanagari+Hindi:ital@0;1&family=Jost:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* ---- Palette ---- */
+  --ivory: #FAF7F2;
+  --dusty-rose: #C9A4A0;
+  --antique-gold: #C9A84C;
+  --sage: #8A9E8C;
+  --deep-burgundy: #6B2737;
+  --cream: #F5EFE6;
+  --text-primary: #2C1810;
+  --text-light: #8B7355;
+
+  /* Extended palette */
+  --gold-light: #E8D5A3;
+  --gold-dark: #A68A3E;
+  --burgundy-light: #8B3A4A;
+  --burgundy-dark: #4A1A25;
+  --rose-light: #E0C8C5;
+  --rose-dark: #A07A75;
+  --sage-light: #A8BCA9;
+  --sage-dark: #6A7E6C;
+  --turmeric: #E8B84B;
+  --turmeric-light: #F5D98A;
+  --white: #FFFFFF;
+  --black: #1A1A1A;
+
+  /* Overlay / Backdrop */
+  --overlay-dark: rgba(44, 24, 16, 0.6);
+  --overlay-light: rgba(250, 247, 242, 0.85);
+
+  /* ---- Typography ---- */
+  --font-heading: 'Playfair Display', 'Cormorant Garamond', 'Georgia', serif;
+  --font-heading-alt: 'Cormorant Garamond', 'Georgia', serif;
+  --font-hindi: 'Tiro Devanagari Hindi', 'Hind', serif;
+  --font-body: 'Jost', 'DM Sans', 'Helvetica Neue', sans-serif;
+  --font-mono: 'DM Sans', sans-serif;
+
+  /* Font Sizes — fluid scale */
+  --fs-xs: clamp(0.65rem, 0.6rem + 0.25vw, 0.75rem);
+  --fs-sm: clamp(0.8rem, 0.75rem + 0.25vw, 0.875rem);
+  --fs-base: clamp(0.9rem, 0.85rem + 0.25vw, 1rem);
+  --fs-md: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --fs-lg: clamp(1.15rem, 1.05rem + 0.5vw, 1.35rem);
+  --fs-xl: clamp(1.4rem, 1.2rem + 1vw, 1.75rem);
+  --fs-2xl: clamp(1.8rem, 1.5rem + 1.5vw, 2.25rem);
+  --fs-3xl: clamp(2.2rem, 1.8rem + 2vw, 3rem);
+  --fs-4xl: clamp(2.8rem, 2.2rem + 3vw, 4rem);
+
+  /* Font Weights */
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Line Heights */
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.7;
+
+  /* Letter Spacing */
+  --ls-tight: -0.02em;
+  --ls-normal: 0;
+  --ls-wide: 0.05em;
+  --ls-wider: 0.1em;
+  --ls-widest: 0.2em;
+
+  /* ---- Spacing ---- */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+  --space-4xl: 6rem;
+
+  /* ---- Borders & Radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  --border-thin: 1px solid var(--antique-gold);
+  --border-gold: 2px solid var(--antique-gold);
+  --border-gold-light: 1px solid var(--gold-light);
+
+  /* ---- Shadows ---- */
+  --shadow-soft: 0 2px 12px rgba(44, 24, 16, 0.06);
+  --shadow-card: 0 4px 20px rgba(44, 24, 16, 0.08);
+  --shadow-elevated: 0 8px 32px rgba(44, 24, 16, 0.12);
+  --shadow-desktop-frame: 0 0 60px rgba(0, 0, 0, 0.15);
+
+  /* ---- Transitions ---- */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 200ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --duration-loader: 700ms;
+
+  /* ---- Z-Index Scale ---- */
+  --z-base: 1;
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-overlay: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+  --z-loader: 300;
+
+  /* ---- Layout ---- */
+  --app-max-width: 430px;
+  --app-min-height: 100dvh;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --content-padding: var(--space-lg);
+}
