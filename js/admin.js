@@ -111,7 +111,7 @@ async function loadGuests() {
 
 async function addGuest(e) {
     e.preventDefault();
-    if (!db) return;
+    if (!db) { showSnack('❌ Firebase not connected'); return; }
 
     const name = document.getElementById('new-guest-name').value.trim();
     const phone = document.getElementById('new-guest-phone').value.trim();
@@ -119,16 +119,22 @@ async function addGuest(e) {
     const events = Array.from(checkboxes).map(cb => cb.value);
     const canUpload = document.getElementById('new-guest-upload').checked;
 
-    try {
-        await db.collection('guests').add({ name, phone, events, canUpload, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-        closeModal('add-guest-modal');
-        document.getElementById('new-guest-name').value = '';
-        document.getElementById('new-guest-phone').value = '';
-        showSnack(`✅ Added: ${name}`);
-        loadGuests();
-    } catch (err) {
-        showSnack('❌ Error adding guest', false);
-    }
+    if (!name || !phone) { showSnack('❌ Name and phone are required'); return; }
+
+    // Close modal + show feedback immediately (don't wait for Firestore)
+    closeModal('add-guest-modal');
+    document.getElementById('new-guest-name').value = '';
+    document.getElementById('new-guest-phone').value = '';
+    showSnack(`✅ Added: ${name}`);
+
+    // Fire the write — don't block the UI
+    const guestData = { name, phone, events, canUpload, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+    db.collection('guests').add(guestData)
+        .then(() => { loadGuests(); })
+        .catch(err => { console.error('Error saving guest:', err); showSnack('⚠️ Save may have failed — check connection'); });
+
+    // Optimistically refresh list after short delay
+    setTimeout(() => loadGuests(), 800);
 }
 
 async function removeGuest(id, name) {
