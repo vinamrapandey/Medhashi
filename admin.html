@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A❋S Wedding — Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Jost:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>⚙️</text></svg>">
+</head>
+
+<body class="admin-body">
+
+    <!-- Login Screen -->
+    <div id="admin-login" class="admin-login">
+        <h2>A ❋ S Admin</h2>
+        <p style="color: #8B7355; margin-bottom: 20px;">Enter admin password</p>
+        <form onsubmit="handleAdminLogin(event)">
+            <input type="password" id="admin-password" placeholder="Password" autocomplete="current-password" required>
+            <button type="submit">Enter</button>
+        </form>
+        <p id="login-error" style="color: #6B2737; margin-top: 10px; display: none;">Incorrect password</p>
+    </div>
+
+    <!-- Admin Dashboard (hidden until login) -->
+    <div id="admin-dashboard" style="display: none;">
+        <div class="admin-header">
+            <h1>A ❋ S Wedding Admin</h1>
+            <p>Manage guests, photos, and access logs</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="admin-tabs">
+            <button class="admin-tab active" onclick="switchTab('guests')">👥 Guests</button>
+            <button class="admin-tab" onclick="switchTab('photos')">📸 Photos</button>
+            <button class="admin-tab" onclick="switchTab('logs')">📋 Access Log</button>
+            <a href="whatsapp-review.html" class="admin-tab" style="text-decoration:none;">📱 WhatsApp Review</a>
+        </div>
+
+        <!-- Guests Section -->
+        <div class="admin-section active" id="section-guests">
+            <h2>Guest Management</h2>
+
+            <form class="guest-form" onsubmit="addGuest(event)">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="guest-name" placeholder="Full name" required>
+                </div>
+                <div class="form-group">
+                    <label>Phone (10 digits)</label>
+                    <input type="tel" id="guest-phone" placeholder="9876543210" pattern="[0-9]{10}" required>
+                </div>
+                <div class="form-group">
+                    <label>Events</label>
+                    <select id="guest-events" multiple>
+                        <option value="engagement" selected>Engagement</option>
+                        <option value="haldi" selected>Haldi/Mehandi/Sangeet</option>
+                        <option value="wedding" selected>Wedding</option>
+                    </select>
+                </div>
+                <button type="submit">+ Add Guest</button>
+            </form>
+
+            <table class="guest-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Events</th>
+                        <th>Upload</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="guest-table-body">
+                    <tr>
+                        <td colspan="5" class="admin-empty">Loading guests...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Photos Section -->
+        <div class="admin-section" id="section-photos">
+            <h2>Photo Management</h2>
+
+            <div class="event-filter">
+                <button class="active" onclick="filterPhotos('all', this)">All</button>
+                <button onclick="filterPhotos('engagement', this)">Engagement</button>
+                <button onclick="filterPhotos('haldi', this)">Haldi/Mehandi</button>
+                <button onclick="filterPhotos('wedding', this)">Wedding</button>
+            </div>
+
+            <div id="admin-photo-grid" class="admin-photo-grid">
+                <div class="admin-empty">Loading photos...</div>
+            </div>
+
+            <div class="admin-download-all">
+                <button class="admin-tab" onclick="downloadAllPhotos()">⬇️ Download All Photos (ZIP)</button>
+            </div>
+        </div>
+
+        <!-- Access Log Section -->
+        <div class="admin-section" id="section-logs">
+            <h2>Guest Access Log</h2>
+
+            <table class="access-log-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Time</th>
+                        <th>Device</th>
+                    </tr>
+                </thead>
+                <tbody id="log-table-body">
+                    <tr>
+                        <td colspan="4" class="admin-empty">Loading logs...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+    <!-- JSZip for batch downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+
+</html>

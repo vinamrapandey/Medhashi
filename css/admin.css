@@ -1,0 +1,316 @@
+/* ============================================
+   AS WEDDING — Admin Panel Styles
+   ============================================ */
+
+.admin-body {
+    font-family: 'Jost', 'DM Sans', sans-serif;
+    background: #F5F5F5;
+    color: #2C1810;
+    padding: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.admin-header {
+    text-align: center;
+    padding: 30px 0;
+    border-bottom: 2px solid #C9A84C;
+    margin-bottom: 30px;
+}
+
+.admin-header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    color: #6B2737;
+    margin-bottom: 5px;
+}
+
+.admin-header p {
+    color: #8B7355;
+    font-size: 0.9rem;
+}
+
+.admin-login {
+    max-width: 400px;
+    margin: 100px auto;
+    text-align: center;
+}
+
+.admin-login h2 {
+    font-family: 'Playfair Display', serif;
+    margin-bottom: 20px;
+    color: #6B2737;
+}
+
+.admin-login input {
+    width: 100%;
+    padding: 12px 20px;
+    border: 1.5px solid #E8D5A3;
+    border-radius: 8px;
+    font-size: 1rem;
+    text-align: center;
+    margin-bottom: 15px;
+    font-family: inherit;
+}
+
+.admin-login input:focus {
+    outline: none;
+    border-color: #C9A84C;
+}
+
+.admin-login button {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #C9A84C, #A68A3E);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.admin-login button:hover {
+    opacity: 0.9;
+}
+
+.admin-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #E8D5A3;
+    padding-bottom: 10px;
+}
+
+.admin-tab {
+    padding: 8px 20px;
+    border: 1px solid #E8D5A3;
+    background: white;
+    color: #8B7355;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.admin-tab:hover,
+.admin-tab.active {
+    background: #C9A84C;
+    color: white;
+    border-color: #C9A84C;
+}
+
+.admin-section {
+    display: none;
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.admin-section.active {
+    display: block;
+}
+
+.admin-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    color: #6B2737;
+    margin-bottom: 20px;
+}
+
+/* Guest Form */
+.guest-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: end;
+}
+
+.guest-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.guest-form label {
+    font-size: 0.75rem;
+    color: #8B7355;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.guest-form input,
+.guest-form select {
+    padding: 8px 12px;
+    border: 1px solid #E8D5A3;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.guest-form input:focus,
+.guest-form select:focus {
+    outline: none;
+    border-color: #C9A84C;
+}
+
+.guest-form button {
+    padding: 8px 20px;
+    background: #6B2737;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+/* Guest Table */
+.guest-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.guest-table th {
+    background: #FAF7F2;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #6B2737;
+    border-bottom: 2px solid #E8D5A3;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.guest-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #F0EBE3;
+}
+
+.guest-table tr:hover {
+    background: #FAF7F2;
+}
+
+.toggle-btn {
+    padding: 4px 12px;
+    border: 1px solid #E8D5A3;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: inherit;
+}
+
+.toggle-btn.on {
+    background: #8A9E8C;
+    color: white;
+    border-color: #8A9E8C;
+}
+
+.delete-btn {
+    padding: 4px 12px;
+    border: 1px solid #C9A4A0;
+    background: white;
+    color: #6B2737;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: inherit;
+}
+
+.delete-btn:hover {
+    background: #6B2737;
+    color: white;
+}
+
+/* Photo grid */
+.admin-photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.admin-photo-item {
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 1;
+    cursor: pointer;
+}
+
+.admin-photo-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.admin-download-all {
+    margin-top: 20px;
+}
+
+/* Access Log */
+.access-log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.access-log-table th {
+    background: #FAF7F2;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #6B2737;
+    border-bottom: 2px solid #E8D5A3;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.access-log-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #F0EBE3;
+}
+
+/* Event filter for photos */
+.event-filter {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.event-filter button {
+    padding: 6px 16px;
+    border: 1px solid #E8D5A3;
+    background: white;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: inherit;
+}
+
+.event-filter button.active {
+    background: #C9A84C;
+    color: white;
+    border-color: #C9A84C;
+}
+
+.admin-empty {
+    text-align: center;
+    color: #8B7355;
+    padding: 40px;
+    font-style: italic;
+}
+
+@media (max-width: 600px) {
+    .guest-form {
+        grid-template-columns: 1fr;
+    }
+}
