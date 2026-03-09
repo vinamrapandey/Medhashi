@@ -1,0 +1,428 @@
+/* ============================================
+   AS WEDDING — Story Onboarding Styles
+   Full-screen slides, progress bars, animations
+   ============================================ */
+
+/* ================ CONTAINER ================ */
+.story-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    touch-action: pan-y;
+    user-select: none;
+}
+
+/* ================ SLIDES ================ */
+.story-slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 28px 80px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s ease;
+    text-align: center;
+    overflow: hidden;
+}
+
+.story-slide.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ================ PROGRESS BARS (bottom) ================ */
+.story-progress {
+    position: absolute;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    gap: 4px;
+    z-index: 20;
+}
+
+.story-progress-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(201, 168, 76, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.story-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: #C9A84C;
+    border-radius: 2px;
+    transition: none;
+}
+
+.story-progress-fill.filling {
+    transition: width linear;
+}
+
+.story-progress-fill.done {
+    width: 100% !important;
+    transition: none;
+}
+
+/* ================ NAV ARROWS ================ */
+.story-nav {
+    position: absolute;
+    bottom: 36px;
+    z-index: 15;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(201, 168, 76, 0.12);
+    border: 1px solid rgba(201, 168, 76, 0.2);
+    border-radius: 50%;
+    color: #C9A84C;
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.story-nav:hover {
+    opacity: 1;
+}
+
+.story-nav-prev {
+    left: 16px;
+}
+
+.story-nav-next {
+    right: 16px;
+}
+
+/* ================ TAP ZONES ================ */
+.story-tap-left,
+.story-tap-right {
+    position: absolute;
+    top: 0;
+    bottom: 80px;
+    z-index: 10;
+    cursor: pointer;
+}
+
+.story-tap-left {
+    left: 0;
+    width: 40%;
+}
+
+.story-tap-right {
+    right: 0;
+    width: 60%;
+}
+
+/* ============================================================
+   SLIDE 1: WELCOME
+   ============================================================ */
+.slide-welcome {
+    background: radial-gradient(ellipse at 50% 40%, #FAF7F2 0%, #F0E6D6 60%, #E8D5C0 100%);
+}
+
+/* Floral bloom SVG */
+.slide-welcome .bloom-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    animation: bloomIn 1.8s 0.2s ease-out forwards;
+}
+
+@keyframes bloomIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+
+    60% {
+        opacity: 0.18;
+    }
+
+    100% {
+        opacity: 0.15;
+        transform: scale(1);
+    }
+}
+
+.slide-welcome .story-small-text {
+    font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+    font-size: 0.85rem;
+    color: #8B7355;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: storyFadeUp 0.6s 0.3s ease forwards;
+    margin-bottom: 16px;
+}
+
+.slide-welcome .story-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: #2C1810;
+    line-height: 1.15;
+    opacity: 0;
+    animation: storyFadeUp 0.6s 0.6s ease forwards;
+    margin-bottom: 20px;
+}
+
+.slide-welcome .story-body {
+    font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+    font-size: 1.05rem;
+    color: #5A4A3A;
+    line-height: 1.7;
+    max-width: 320px;
+    opacity: 0;
+    animation: storyFadeUp 0.6s 0.9s ease forwards;
+}
+
+.slide-welcome .story-monogram {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    color: #C9A84C;
+    letter-spacing: 0.3em;
+    opacity: 0;
+    animation: storyFadeUp 0.6s 1.2s ease forwards;
+    margin-top: 28px;
+}
+
+@keyframes storyFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================
+   SLIDE 2: MEDHASHI DEFINITION
+   ============================================================ */
+.slide-medhashi {
+    background: linear-gradient(170deg, #6B2737 0%, #4A1A26 40%, #2D0F18 100%);
+}
+
+.medhashi-card {
+    width: 100%;
+    max-width: 340px;
+    text-align: left;
+    padding: 0 8px;
+}
+
+.medhashi-word {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #F5EFE6;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    min-height: 2.2rem;
+    margin-bottom: 4px;
+}
+
+.medhashi-word .typewriter-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.6rem;
+    background: #C9A84C;
+    margin-left: 2px;
+    animation: blink 0.6s step-end infinite;
+    vertical-align: middle;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+.medhashi-pronunciation {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.9rem;
+    color: rgba(245, 239, 230, 0.5);
+    font-style: italic;
+    margin-bottom: 12px;
+    opacity: 0;
+}
+
+.medhashi-divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #C9A84C, transparent);
+    margin-bottom: 16px;
+    opacity: 0;
+}
+
+.medhashi-type {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.85rem;
+    color: rgba(245, 239, 230, 0.45);
+    font-style: italic;
+    margin-bottom: 16px;
+    opacity: 0;
+}
+
+.medhashi-def {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    color: #F5EFE6;
+    line-height: 1.7;
+    margin-bottom: 12px;
+    opacity: 0;
+}
+
+.medhashi-def .def-num {
+    color: #C9A84C;
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.medhashi-def-hi {
+    font-family: 'Tiro Devanagari Hindi', serif;
+    font-size: 0.92rem;
+    color: rgba(245, 239, 230, 0.7);
+    line-height: 1.8;
+    margin-bottom: 20px;
+    opacity: 0;
+}
+
+.medhashi-site {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.8rem;
+    color: #C9A84C;
+    letter-spacing: 0.05em;
+    opacity: 0;
+}
+
+.medhashi-card .fade-in-def {
+    animation: defFadeIn 0.5s ease forwards;
+}
+
+@keyframes defFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================================
+   SLIDE 3: EVENTS PREVIEW
+   ============================================================ */
+.slide-events {
+    background: radial-gradient(ellipse at 50% 30%, #FAF7F2 0%, #F5EFE6 100%);
+    padding-top: 36px;
+    justify-content: flex-start;
+}
+
+.slide-events .story-events-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: #2C1810;
+    margin-bottom: 20px;
+    opacity: 0;
+    animation: storyFadeUp 0.5s 0.2s ease forwards;
+}
+
+.story-event-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 360px;
+}
+
+.story-event-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: white;
+    border-radius: 14px;
+    border: 1px solid rgba(201, 168, 76, 0.2);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    opacity: 0;
+}
+
+.story-event-card:nth-child(1) {
+    animation: storyFadeUp 0.5s 0.4s ease forwards;
+}
+
+.story-event-card:nth-child(2) {
+    animation: storyFadeUp 0.5s 0.6s ease forwards;
+}
+
+.story-event-card:nth-child(3) {
+    animation: storyFadeUp 0.5s 0.8s ease forwards;
+}
+
+.story-event-card:active {
+    transform: scale(0.97);
+}
+
+.story-event-icon {
+    font-size: 1.6rem;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.story-event-card-engagement .story-event-icon {
+    background: rgba(201, 164, 160, 0.15);
+}
+
+.story-event-card-haldi .story-event-icon {
+    background: rgba(218, 165, 32, 0.12);
+}
+
+.story-event-card-wedding .story-event-icon {
+    background: rgba(107, 39, 55, 0.1);
+}
+
+.story-event-info {
+    flex: 1;
+    text-align: left;
+}
+
+.story-event-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #2C1810;
+    margin-bottom: 2px;
+}
+
+.story-event-date {
+    font-size: 0.75rem;
+    color: #8B7355;
+}
+
+.story-event-arrow {
+    color: #C9A84C;
+    font-size: 1.1rem;
+    opacity: 0.6;
+}
