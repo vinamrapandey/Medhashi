@@ -38,33 +38,19 @@ function navigateTo(screenId, options = {}) {
     }
 
     const doTransition = () => {
-        // Hide all top-level screens
         hideAllScreens();
 
-        if (screenId === 'screen-main-flow') {
-            // Main flow: show the parent container and render all child sections
-            const mainFlow = document.getElementById('screen-main-flow');
-            if (mainFlow) {
-                mainFlow.classList.add('active');
-                void mainFlow.offsetHeight;
-                mainFlow.classList.add('fade-in');
-            }
+        // Initialize screen content
+        initScreen(screenId);
 
-            initMainFlow();
-            currentScreen = 'screen-main-flow';
-        } else {
-            // Single screen
-            initScreen(screenId);
-
-            const newScreen = document.getElementById(screenId);
-            if (newScreen) {
-                newScreen.classList.add('active');
-                void newScreen.offsetHeight;
-                newScreen.classList.add('fade-in');
-            }
-
-            currentScreen = screenId;
+        const newScreen = document.getElementById(screenId);
+        if (newScreen) {
+            newScreen.classList.add('active');
+            void newScreen.offsetHeight;
+            newScreen.classList.add('fade-in');
         }
+
+        currentScreen = screenId;
 
         // Scroll to top
         const container = document.querySelector('.app-container');
@@ -87,18 +73,31 @@ function updateNav(screenId) {
     const backArrow = document.getElementById('back-arrow');
     const langToggle = document.getElementById('lang-toggle');
 
-    // Back arrow — show only on event detail pages
+    // Back arrow — show on event detail and events page
     if (backArrow) {
-        backArrow.style.display = (screenId === 'screen-event-detail') ? 'flex' : 'none';
+        if (screenId === 'screen-event-detail') {
+            backArrow.style.display = 'flex';
+            backArrow.onclick = () => {
+                clearAllCountdowns();
+                navigateTo('screen-events');
+            };
+        } else if (screenId === 'screen-events') {
+            backArrow.style.display = 'flex';
+            backArrow.onclick = () => {
+                navigateTo('screen-story', { skipLoader: true });
+            };
+        } else {
+            backArrow.style.display = 'none';
+        }
     }
 
-    // Language toggle — show on all screens except screen 0
+    // Language toggle — show on events and event detail only (not during story)
     if (langToggle) {
-        if (screenId === 'screen-language') {
-            langToggle.style.display = 'none';
-        } else {
+        if (screenId === 'screen-events' || screenId === 'screen-event-detail') {
             langToggle.style.display = 'block';
             langToggle.textContent = t('langToggleLabel');
+        } else {
+            langToggle.style.display = 'none';
         }
     }
 }
@@ -111,6 +110,13 @@ function initScreen(screenId) {
             break;
         case 'screen-phone':
             renderPhoneScreen();
+            break;
+        case 'screen-story':
+            renderStoryScreen();
+            break;
+        case 'screen-events':
+            clearAllCountdowns();
+            renderEventsScreen();
             break;
         case 'screen-event-detail':
             renderEventDetailScreen(currentEvent);
@@ -125,12 +131,11 @@ function toggleLanguage() {
     setLang(newLang);
 
     // Re-render current screen
-    if (currentScreen === 'screen-main-flow') {
-        // Re-render all sections in main flow
+    if (currentScreen === 'screen-story') {
+        cleanupStory();
+        renderStoryScreen();
+    } else if (currentScreen === 'screen-events') {
         clearAllCountdowns();
-        renderHeroScreen();
-        renderFamilyScreen();
-        renderMessageScreen();
         renderEventsScreen();
     } else if (currentScreen === 'screen-event-detail') {
         clearAllCountdowns();
@@ -140,23 +145,6 @@ function toggleLanguage() {
     }
 
     updateNav(currentScreen);
-}
-
-/* ---- Main Flow (Screens 2-5 as scrollable sections) ---- */
-function initMainFlow() {
-    renderHeroScreen();
-    renderFamilyScreen();
-    renderMessageScreen();
-    renderEventsScreen();
-
-    // Mark child sections as visible (they are inside screen-main-flow)
-    ['screen-hero', 'screen-family', 'screen-message', 'screen-events'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.style.display = 'flex';
-            el.style.opacity = '1';
-        }
-    });
 }
 
 /* ---- App Initialization ---- */
@@ -171,15 +159,7 @@ function initApp() {
         });
     }
 
-    // Set up navigation event listeners
-    const backArrow = document.getElementById('back-arrow');
-    if (backArrow) {
-        backArrow.addEventListener('click', () => {
-            clearAllCountdowns();
-            navigateTo('screen-main-flow');
-        });
-    }
-
+    // Set up lang toggle
     const langToggle = document.getElementById('lang-toggle');
     if (langToggle) {
         langToggle.addEventListener('click', toggleLanguage);
@@ -192,7 +172,7 @@ function initApp() {
     } else {
         const guestPhone = sessionStorage.getItem('guest_phone');
         if (guestPhone) {
-            navigateTo('screen-main-flow');
+            navigateTo('screen-story');
         } else {
             navigateTo('screen-phone');
         }

@@ -238,44 +238,70 @@ const STRINGS = {
 
   // ---- WhatsApp Share Section ----
   shareHeading: {
-    en: 'Share Your Moments',
-    hi: 'अपने पल साझा करें'
+    en: 'Share Your Memories',
+    hi: 'अपनी यादें साझा करें'
   },
-  waSendVia: {
-    en: 'Send via WhatsApp',
-    hi: 'व्हाट्सऐप पर भेजें'
+  waSendPhotos: {
+    en: 'Send Photos',
+    hi: 'फ़ोटो भेजें'
   },
   waSubtext: {
-    en: 'Best for photos • Easy for everyone',
-    hi: 'फोटो के लिए सबसे अच्छा • सबके लिए आसान'
+    en: 'Easy for everyone',
+    hi: 'सबके लिए आसान'
   },
   waTag: {
-    en: '📸 Photos & Short Videos',
-    hi: '📸 फोटो और छोटे वीडियो'
+    en: '📸 Photos & Clips',
+    hi: '📸 फोटो और क्लिप्स'
+  },
+  waOpenBtn: {
+    en: 'Open WhatsApp',
+    hi: 'व्हाट्सऐप खोलें'
   },
   uploadVideosLabel: {
     en: 'Upload Videos',
     hi: 'वीडियो अपलोड करें'
   },
   uploadVideosSubtext: {
-    en: 'Full quality • For long videos only',
-    hi: 'पूरी गुणवत्ता • सिर्फ लंबे वीडियो के लिए'
+    en: 'Full quality',
+    hi: 'पूर्ण गुणवत्ता'
   },
   uploadVideosTag: {
-    en: '🎥 Full Length Videos Only',
-    hi: '🎥 सिर्फ पूरे वीडियो'
+    en: '🎥 Long Videos',
+    hi: '🎥 लंबे वीडियो'
+  },
+  uploadBtn: {
+    en: 'Upload',
+    hi: 'अपलोड करें'
   },
   shareNote: {
-    en: 'Photos sent via WhatsApp will appear in the gallery after review. Videos uploaded directly will be available immediately.',
-    hi: 'व्हाट्सऐप से भेजी गई तस्वीरें समीक्षा के बाद गैलरी में दिखेंगी। सीधे अपलोड किए गए वीडियो तुरंत उपलब्ध होंगे।'
+    en: 'Photos sent via WhatsApp will appear in the gallery after admin review.',
+    hi: 'व्हाट्सऐप से भेजी गई तस्वीरें समीक्षा के बाद गैलरी में दिखेंगी।'
   },
   waPrefilledMsg: {
-    en: (eventName) => `Hi! I'm sending my photos from ${eventName}. My name is: `,
+    en: (eventName) => `Hi! I am sending my photos from ${eventName}. My name is: `,
     hi: (eventName) => `नमस्ते! मैं ${eventName} की तस्वीरें भेज रहा/रही हूँ। मेरा नाम है: `
   },
   sharedBy: {
     en: (name) => `Shared by ${name}`,
     hi: (name) => `${name} द्वारा साझा`
+  },
+
+  // ---- Story Onboarding ----
+  storyWelcomeSmall: {
+    en: 'Together with our families',
+    hi: 'अपने परिवारों के साथ'
+  },
+  storyWelcomeHeading: {
+    en: "You're Invited",
+    hi: 'आपको आमंत्रित किया जाता है'
+  },
+  storyWelcomeBody: {
+    en: 'With hearts full of joy, Apoorva & Saumya request the honour of your presence as they begin their forever.',
+    hi: 'हर्षपूर्ण हृदय के साथ, अपूर्वा और सौम्य आपकी उपस्थिति का सम्मानपूर्वक अनुरोध करते हैं।'
+  },
+  storyCelebrations: {
+    en: 'Our Celebrations',
+    hi: 'हमारे उत्सव'
   },
 };
 
