@@ -88,8 +88,8 @@ const STRINGS = {
     hi: 'श्री राजर्षि द्विवेदी'
   },
   groomMother: {
-    en: 'Smt. Dwivedy',
-    hi: 'श्रीमती द्विवेदी'
+    en: 'Smt. Aprajita Dwivedy',
+    hi: 'श्रीमती अपराजिता द्विवेदी'
   },
   andText: {
     en: '&',

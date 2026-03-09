@@ -61,7 +61,7 @@ function renderStoryScreen() {
           <div class="invite-parents-ampersand">&</div>
           <div class="invite-parents-col">
             Shri Rajarshi Dwivedy<br>
-            & Smt. Geeta Dwivedy
+            & Smt. Aprajita Dwivedy
           </div>
         </div>
 
