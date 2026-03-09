@@ -98,12 +98,9 @@ async function handlePhoneSubmit(e) {
                 : STRINGS.phoneWelcome.en(guest.name);
             showToast(welcomeMsg);
 
-            // Navigate to main flow
+            // Navigate to story onboarding
             setTimeout(() => {
-                showLoader();
-                hideLoader(600).then(() => {
-                    initMainFlow();
-                });
+                navigateTo('screen-story');
             }, 800);
         } else {
             // Guest not found
