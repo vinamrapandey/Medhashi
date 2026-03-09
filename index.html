@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Apoorva & Saumya — Wedding Invitation</title>
+  <meta name="description" content="You are cordially invited to celebrate the union of Apoorva & Saumya. Join us for our engagement, haldi, mehandi, sangeet, and wedding celebrations.">
+  <meta name="theme-color" content="#FAF7F2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="A ❋ S Wedding">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Apoorva & Saumya — Wedding Invitation">
+  <meta property="og:description" content="You are cordially invited to celebrate the union of Apoorva & Saumya.">
+  <meta property="og:type" content="website">
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Preload fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/screens.css">
+  <link rel="stylesheet" href="css/gallery.css">
+
+  <!-- Favicon (gold A❋S) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>💍</text></svg>">
+</head>
+<body>
+  <div class="app-wrapper">
+    <div class="app-container" id="app-container">
+
+      <!-- ====== LOADER OVERLAY ====== -->
+      <div class="loader-overlay" id="loader-overlay">
+        <div class="loader-monogram">A ❋ S</div>
+      </div>
+
+      <!-- ====== TOAST CONTAINER ====== -->
+      <div class="toast-container" id="toast-container"></div>
+
+      <!-- ====== BACK ARROW ====== -->
+      <button class="back-arrow" id="back-arrow" style="display:none;" aria-label="Go back">←</button>
+
+      <!-- ====== LANGUAGE TOGGLE ====== -->
+      <button class="lang-toggle" id="lang-toggle" style="display:none;">EN</button>
+
+      <!-- ====== SCREEN 0: LANGUAGE SELECT ====== -->
+      <div class="screen screen-language" id="screen-language"></div>
+
+      <!-- ====== SCREEN 1: PHONE ENTRY ====== -->
+      <div class="screen screen-phone" id="screen-phone"></div>
+
+      <!-- ====== MAIN FLOW (Screens 2-5, scrollable) ====== -->
+      <div class="screen main-flow" id="screen-main-flow">
+        <!-- Screen 2: Hero -->
+        <section class="screen screen-hero" id="screen-hero"></section>
+
+        <!-- Screen 3: Family Names -->
+        <section class="screen screen-family" id="screen-family"></section>
+
+        <!-- Screen 4: Personal Message -->
+        <section class="screen screen-message" id="screen-message"></section>
+
+        <!-- Screen 5: Events Menu -->
+        <section class="screen screen-events" id="screen-events"></section>
+      </div>
+
+      <!-- ====== SCREEN 6: EVENT DETAIL (dynamic) ====== -->
+      <div class="screen screen-event-detail" id="screen-event-detail"></div>
+
+    </div>
+  </div>
+
+  <!-- ====== LIGHTBOX OVERLAY ====== -->
+  <div class="lightbox-overlay" id="lightbox-overlay">
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close">✕</button>
+    <div class="lightbox-image-container">
+      <img class="lightbox-image" id="lightbox-image" src="" alt="Full size photo">
+    </div>
+    <button class="lightbox-download" id="lightbox-download">⬇ Download</button>
+  </div>
+
+  <!-- ====== FIREBASE SDK (Compat for simplicity) ====== -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+  <!-- ====== PDF Generation CDNs ====== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- ====== APP JS (dependency order) ====== -->
+  <script src="js/i18n.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/loader.js"></script>
+  <script src="js/countdown.js"></script>
+  <script src="js/components/lang-toggle.js"></script>
+  <script src="js/components/lightbox.js"></script>
+  <script src="js/components/gallery.js"></script>
+  <script src="js/components/pdf-generator.js"></script>
+  <script src="js/screens/screen0-language.js"></script>
+  <script src="js/screens/screen1-phone.js"></script>
+  <script src="js/screens/screen2-hero.js"></script>
+  <script src="js/screens/screen3-family.js"></script>
+  <script src="js/screens/screen4-message.js"></script>
+  <script src="js/screens/screen5-events.js"></script>
+  <script src="js/screens/screen6-event.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
