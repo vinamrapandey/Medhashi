@@ -22,16 +22,21 @@
     align-items: center;
     justify-content: center;
     padding: 40px 28px 80px;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.5s ease;
     text-align: center;
     overflow: hidden;
+    transform: translateX(100%);
+    /* Default off-screen right */
+    transition: transform 0.35s ease-in-out;
 }
 
 .story-slide.active {
-    opacity: 1;
-    visibility: visible;
+    transform: translateX(0);
+    /* On-screen */
+}
+
+.story-slide.prev {
+    transform: translateX(-100%);
+    /* Off-screen left */
 }
 
 /* ================ PROGRESS BARS (bottom) ================ */
@@ -48,7 +53,7 @@
 .story-progress-bar {
     flex: 1;
     height: 3px;
-    background: rgba(201, 168, 76, 0.2);
+    background: rgba(201, 168, 76, 0.25);
     border-radius: 2px;
     overflow: hidden;
 }
@@ -58,48 +63,68 @@
     width: 0%;
     background: #C9A84C;
     border-radius: 2px;
-    transition: none;
 }
 
-.story-progress-fill.filling {
-    transition: width linear;
-}
-
-.story-progress-fill.done {
-    width: 100% !important;
-    transition: none;
+.story-progress-fill.filled {
+    width: 100%;
 }
 
 /* ================ NAV ARROWS ================ */
 .story-nav {
     position: absolute;
-    bottom: 36px;
+    bottom: 40px;
     z-index: 15;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(201, 168, 76, 0.12);
-    border: 1px solid rgba(201, 168, 76, 0.2);
+    background: transparent;
+    border: 1.5px solid #C9A84C;
     border-radius: 50%;
     color: #C9A84C;
-    font-size: 1rem;
+    font-size: 1.2rem;
     cursor: pointer;
-    opacity: 0.6;
-    transition: opacity 0.2s;
+    transition: all 0.2s ease;
 }
 
-.story-nav:hover {
-    opacity: 1;
+.story-nav:active {
+    transform: scale(0.95);
+    background: rgba(201, 168, 76, 0.1);
+}
+
+.story-nav.hidden {
+    display: none !important;
 }
 
 .story-nav-prev {
-    left: 16px;
+    left: 20px;
 }
 
 .story-nav-next {
-    right: 16px;
+    right: 20px;
+}
+
+.story-nav-begin {
+    position: absolute;
+    bottom: 40px;
+    right: 20px;
+    z-index: 15;
+    background: #C9A84C;
+    color: #1C1008;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 20px;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: none;
+    transition: transform 0.2s;
+}
+
+.story-nav-begin:active {
+    transform: scale(0.97);
 }
 
 /* ================ TAP ZONES ================ */
@@ -123,98 +148,13 @@
 }
 
 /* ============================================================
-   SLIDE 1: WELCOME
-   ============================================================ */
-.slide-welcome {
-    background: radial-gradient(ellipse at 50% 40%, #FAF7F2 0%, #F0E6D6 60%, #E8D5C0 100%);
-}
-
-/* Floral bloom SVG */
-.slide-welcome .bloom-svg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    animation: bloomIn 1.8s 0.2s ease-out forwards;
-}
-
-@keyframes bloomIn {
-    0% {
-        opacity: 0;
-        transform: scale(0.3);
-    }
-
-    60% {
-        opacity: 0.18;
-    }
-
-    100% {
-        opacity: 0.15;
-        transform: scale(1);
-    }
-}
-
-.slide-welcome .story-small-text {
-    font-family: 'Cormorant Garamond', 'Playfair Display', serif;
-    font-size: 0.85rem;
-    color: #8B7355;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    opacity: 0;
-    animation: storyFadeUp 0.6s 0.3s ease forwards;
-    margin-bottom: 16px;
-}
-
-.slide-welcome .story-heading {
-    font-family: 'Playfair Display', serif;
-    font-size: 2.4rem;
-    font-weight: 700;
-    color: #2C1810;
-    line-height: 1.15;
-    opacity: 0;
-    animation: storyFadeUp 0.6s 0.6s ease forwards;
-    margin-bottom: 20px;
-}
-
-.slide-welcome .story-body {
-    font-family: 'Cormorant Garamond', 'Playfair Display', serif;
-    font-size: 1.05rem;
-    color: #5A4A3A;
-    line-height: 1.7;
-    max-width: 320px;
-    opacity: 0;
-    animation: storyFadeUp 0.6s 0.9s ease forwards;
-}
-
-.slide-welcome .story-monogram {
-    font-family: 'Playfair Display', serif;
-    font-size: 1rem;
-    color: #C9A84C;
-    letter-spacing: 0.3em;
-    opacity: 0;
-    animation: storyFadeUp 0.6s 1.2s ease forwards;
-    margin-top: 28px;
-}
-
-@keyframes storyFadeUp {
-    from {
-        opacity: 0;
-        transform: translateY(18px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* ============================================================
-   SLIDE 2: MEDHASHI DEFINITION
+   SLIDE 1: MEDHASHI DEFINITION (moved from slide 2)
    ============================================================ */
 .slide-medhashi {
-    background: linear-gradient(170deg, #6B2737 0%, #4A1A26 40%, #2D0F18 100%);
+    background: #1C1008;
 }
+
+
 
 .medhashi-card {
     width: 100%;
@@ -309,13 +249,134 @@
 }
 
 .medhashi-card .fade-in-def {
-    animation: defFadeIn 0.5s ease forwards;
+    animation: defFadeIn 0.8s ease forwards;
 }
 
 @keyframes defFadeIn {
     from {
         opacity: 0;
-        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* ============================================================
+   SLIDE 2: INVITATION
+   ============================================================ */
+.slide-invitation {
+    background: #FAF7F2;
+}
+
+.invite-card {
+    text-align: center;
+    width: 100%;
+    max-width: 360px;
+}
+
+.invite-blessings {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 0.9rem;
+    font-style: italic;
+    color: #7D8F7B;
+    /* sage green */
+    margin: 16px 0 12px;
+    opacity: 0;
+}
+
+.invite-parents-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    opacity: 0;
+}
+
+.invite-parents-col {
+    flex: 1;
+    font-size: 0.85rem;
+    color: #A38848;
+    /* soft gold */
+    line-height: 1.5;
+}
+
+.invite-parents-ampersand {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    color: #A38848;
+    margin: 0 10px;
+    margin-top: 8px;
+}
+
+.invite-divider {
+    width: 80px;
+    height: 1px;
+    background: #C9A84C;
+    margin: 0 auto 24px;
+    opacity: 0.5;
+    opacity: 0;
+}
+
+.invite-together {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    font-style: italic;
+    color: #B58A8A;
+    /* dusty rose */
+    margin-bottom: 20px;
+    opacity: 0;
+}
+
+.invite-names {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.8rem;
+    font-weight: 600;
+    color: #4A1A26;
+    /* deep burgundy */
+    line-height: 1.1;
+    margin-bottom: 4px;
+    opacity: 0;
+}
+
+.invite-names-hi {
+    font-family: 'Tiro Devanagari Hindi', serif;
+    font-size: 1.4rem;
+    color: #4A1A26;
+    margin-bottom: 24px;
+    opacity: 0;
+}
+
+.invite-request {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1rem;
+    font-style: italic;
+    color: #5A4A3A;
+    line-height: 1.6;
+    margin-bottom: 28px;
+    opacity: 0;
+}
+
+.invite-date-location {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    color: #A38848;
+    text-transform: uppercase;
+    line-height: 1.8;
+    margin-top: 24px;
+    margin-bottom: 16px;
+    opacity: 0;
+}
+
+.invite-fade-in {
+    animation: inviteFadeUp 0.8s ease forwards;
+}
+
+@keyframes inviteFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
     }
 
     to {
