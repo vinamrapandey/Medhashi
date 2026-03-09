@@ -1,6 +1,7 @@
 /* ============================================
    AS WEDDING — Admin Dashboard Logic
    Login, Guests, Review, Gallery, Stats
+   (localStorage — no Firebase)
    ============================================ */
 
 const ADMIN_PASS = 'medhashi2026';
@@ -23,7 +24,6 @@ function handleAdminLogin(e) {
     const error = document.getElementById('login-error');
 
     if (input.value === ADMIN_PASS) {
-        // Store hashed session
         const session = { hash: btoa(ADMIN_PASS), expires: Date.now() + SESSION_DURATION };
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         showDashboard();
@@ -36,9 +36,7 @@ function handleAdminLogin(e) {
 function checkSession() {
     try {
         const session = JSON.parse(localStorage.getItem(SESSION_KEY));
-        if (session && session.hash === btoa(ADMIN_PASS) && Date.now() < session.expires) {
-            return true;
-        }
+        if (session && session.hash === btoa(ADMIN_PASS) && Date.now() < session.expires) return true;
     } catch (e) { }
     return false;
 }
@@ -46,7 +44,6 @@ function checkSession() {
 function showDashboard() {
     document.getElementById('admin-login').style.display = 'none';
     document.getElementById('admin-dashboard').style.display = 'block';
-    initFirebase();
     loadGuests();
     loadReview();
 }
@@ -66,24 +63,20 @@ function switchTab(tabName) {
 }
 
 /* ==================== GUESTS TAB ==================== */
-async function loadGuests() {
+function loadGuests() {
     const container = document.getElementById('guest-list');
-    if (!db) { container.innerHTML = '<div class="empty-state">Firebase not connected</div>'; return; }
+    const guests = getAllGuests();
 
-    try {
-        const snapshot = await db.collection('guests').orderBy('name').get();
-        const guests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    document.getElementById('guest-count-badge').textContent = guests.length;
 
-        document.getElementById('guest-count-badge').textContent = guests.length;
+    if (guests.length === 0) {
+        container.innerHTML = '<div class="empty-state">No guests yet. Add your first guest!</div>';
+        return;
+    }
 
-        if (guests.length === 0) {
-            container.innerHTML = '<div class="empty-state">No guests yet. Add your first guest!</div>';
-            return;
-        }
-
-        container.innerHTML = guests.map(g => {
-            const events = g.events || [];
-            return `
+    container.innerHTML = guests.map(g => {
+        const events = g.events || [];
+        return `
       <div class="guest-card">
         <div class="guest-card-top">
           <div>
@@ -103,15 +96,11 @@ async function loadGuests() {
           </div>
         </div>
       </div>`;
-        }).join('');
-    } catch (err) {
-        container.innerHTML = '<div class="empty-state">Error loading guests</div>';
-    }
+    }).join('');
 }
 
-async function addGuest(e) {
+function addGuest(e) {
     e.preventDefault();
-    if (!db) { showSnack('❌ Firebase not connected'); return; }
 
     const name = document.getElementById('new-guest-name').value.trim();
     const phone = document.getElementById('new-guest-phone').value.trim();
@@ -121,59 +110,45 @@ async function addGuest(e) {
 
     if (!name || !phone) { showSnack('❌ Name and phone are required'); return; }
 
-    // Close modal + show feedback immediately (don't wait for Firestore)
+    addGuestLocal({ name, phone, events, canUpload });
+
     closeModal('add-guest-modal');
     document.getElementById('new-guest-name').value = '';
     document.getElementById('new-guest-phone').value = '';
     showSnack(`✅ Added: ${name}`);
-
-    // Fire the write — don't block the UI
-    const guestData = { name, phone, events, canUpload, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
-    db.collection('guests').add(guestData)
-        .then(() => { loadGuests(); })
-        .catch(err => { console.error('Error saving guest:', err); showSnack('⚠️ Save may have failed — check connection'); });
-
-    // Optimistically refresh list after short delay
-    setTimeout(() => loadGuests(), 800);
+    loadGuests();
 }
 
-async function removeGuest(id, name) {
+function removeGuest(id, name) {
     if (!confirm(`Remove ${name}?`)) return;
-    try {
-        await db.collection('guests').doc(id).delete();
-        showSnack(`Removed: ${name}`);
-        loadGuests();
-    } catch (err) {
-        showSnack('❌ Error removing guest', false);
-    }
+    removeGuestLocal(id);
+    showSnack(`Removed: ${name}`);
+    loadGuests();
 }
 
 function openAddGuestModal() { document.getElementById('add-guest-modal').classList.add('visible'); }
 function openCsvImport() { document.getElementById('csv-modal').classList.add('visible'); }
 
-async function importCsv() {
-    if (!db) return;
+function importCsv() {
     const raw = document.getElementById('csv-input').value.trim();
     if (!raw) return;
 
     const lines = raw.split('\n').filter(l => l.trim());
-    let count = 0;
+    const newGuests = [];
 
     for (const line of lines) {
         const parts = line.split(',').map(s => s.trim());
         if (parts.length < 2) continue;
 
-        const name = parts[0];
-        const phone = parts[1];
-        const events = (parts[2] || 'engagement|haldi|wedding').split('|').map(s => s.trim());
-        const canUpload = parts[3] !== 'false';
-
-        try {
-            await db.collection('guests').add({ name, phone, events, canUpload, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-            count++;
-        } catch (e) { }
+        newGuests.push({
+            name: parts[0],
+            phone: parts[1],
+            events: (parts[2] || 'engagement|haldi|wedding').split('|').map(s => s.trim()),
+            canUpload: parts[3] !== 'false'
+        });
     }
 
+    const count = importGuestsLocal(newGuests);
     closeModal('csv-modal');
     document.getElementById('csv-input').value = '';
     showSnack(`📥 Imported ${count} guests`);
@@ -182,7 +157,6 @@ async function importCsv() {
 
 /* ==================== REVIEW TAB ==================== */
 document.addEventListener('DOMContentLoaded', () => {
-    // Auto-login check
     if (checkSession()) showDashboard();
 
     // Filter listeners
@@ -227,11 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-async function loadReview() {
+function loadReview() {
     const container = document.getElementById('review-cards');
-    container.innerHTML = '<div class="empty-state">Loading...</div>';
 
-    reviewSubmissions = await getWhatsAppSubmissions(
+    reviewSubmissions = getWhatsAppSubmissions(
         currentReviewStatus === 'all' ? null : currentReviewStatus,
         currentReviewEvent === 'all' ? null : currentReviewEvent
     );
@@ -254,7 +227,7 @@ function renderReviewCards() {
     const eventLabels = { engagement: 'Engagement', haldi: 'Haldi & Sangeet', wedding: 'Wedding' };
 
     container.innerHTML = reviewSubmissions.map(sub => {
-        const time = sub.receivedAt ? sub.receivedAt.toDate().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+        const time = sub.receivedAt ? new Date(sub.receivedAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
         const photos = sub.mediaUrls || [];
         const show = photos.slice(0, 4);
         const more = photos.length - 4;
@@ -319,16 +292,16 @@ function attachSwipeGesture(card, docId) {
     document.addEventListener('mouseup', upHandler);
 }
 
-async function handleReviewAction(docId, status) {
+function handleReviewAction(docId, status) {
     const sub = reviewSubmissions.find(s => s.id === docId);
     if (!sub) return;
 
     if (status === 'approved') {
-        await approveAndCopyToGallery(sub);
+        approveAndCopyToGallery(sub);
         showSnack(`✅ Approved: ${sub.senderName}`);
     } else {
-        undoData = { docId, sub };
-        await updateSubmissionStatus(docId, 'rejected', 'admin');
+        undoData = { docId, previousStatus: sub.status };
+        updateSubmissionStatus(docId, 'rejected', 'admin');
         showSnack(`❌ Rejected: ${sub.senderName}`, true);
         undoTimer = setTimeout(() => { undoData = null; hideSnack(); }, 5000);
     }
@@ -348,14 +321,14 @@ function toggleSelectAll(checked) {
     document.getElementById('selected-count-text').textContent = selectedReviewIds.size > 0 ? `${selectedReviewIds.size} selected` : '';
 }
 
-async function bulkAction(status) {
+function bulkAction(status) {
     if (selectedReviewIds.size === 0) return;
     const ids = [...selectedReviewIds];
     for (const id of ids) {
         const sub = reviewSubmissions.find(s => s.id === id);
         if (!sub) continue;
-        if (status === 'approved') await approveAndCopyToGallery(sub);
-        else await updateSubmissionStatus(id, status, 'admin');
+        if (status === 'approved') approveAndCopyToGallery(sub);
+        else updateSubmissionStatus(id, status, 'admin');
     }
     showSnack(`${status === 'approved' ? '✅' : '❌'} ${ids.length} submissions ${status}`);
     selectedReviewIds.clear();
@@ -365,7 +338,6 @@ async function bulkAction(status) {
 function openReviewLightbox(docId) {
     const sub = reviewSubmissions.find(s => s.id === docId);
     if (!sub || !sub.mediaUrls || sub.mediaUrls.length === 0) return;
-    // Show first image in gallery lightbox
     const img = document.getElementById('lightbox-full-img');
     img.src = sub.mediaUrls[0];
     document.getElementById('lightbox-meta').innerHTML = `
@@ -421,97 +393,74 @@ async function submitAdminUpload() {
 }
 
 /* ==================== GALLERY TAB ==================== */
-async function loadGalleryTab() {
+function loadGalleryTab() {
     const container = document.getElementById('gallery-grid');
-    container.innerHTML = '<div class="empty-state">Loading...</div>';
+    let photos = localGet('as_photos').filter(p => p.approved);
 
-    if (!db) { container.innerHTML = '<div class="empty-state">Firebase not connected</div>'; return; }
+    if (currentGalleryFilter !== 'all') {
+        photos = photos.filter(p => p.event === currentGalleryFilter);
+    }
 
-    try {
-        let query = db.collection('photos').where('approved', '==', true).orderBy('timestamp', 'desc');
-        if (currentGalleryFilter !== 'all') {
-            query = query.where('event', '==', currentGalleryFilter);
-        }
+    if (photos.length === 0) {
+        container.innerHTML = '<div class="empty-state">No approved photos yet</div>';
+        return;
+    }
 
-        const snapshot = await query.limit(200).get();
-        const photos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        if (photos.length === 0) {
-            container.innerHTML = '<div class="empty-state">No approved photos yet</div>';
-            return;
-        }
-
-        container.innerHTML = photos.map(p => `
-      <div class="admin-gallery-item" onclick="openGalleryLightbox('${p.id}', '${p.url}', '${(p.uploadedBy || '').replace(/'/g, "\\'")}', '${p.source || 'direct'}', '${p.event || ''}', '${p.timestamp ? p.timestamp.toDate().toLocaleString() : '—'}')">
+    container.innerHTML = photos.slice(0, 200).map(p => `
+      <div class="admin-gallery-item" onclick="openGalleryLightbox('${p.id}')">
         <img src="${p.url}" loading="lazy" alt="">
       </div>
     `).join('');
-    } catch (err) {
-        container.innerHTML = '<div class="empty-state">Error loading gallery</div>';
-    }
 }
 
-function openGalleryLightbox(docId, url, uploader, source, event, time) {
-    document.getElementById('lightbox-full-img').src = url;
+function openGalleryLightbox(docId) {
+    const photos = localGet('as_photos');
+    const p = photos.find(ph => ph.id === docId);
+    if (!p) return;
+
+    document.getElementById('lightbox-full-img').src = p.url;
+    const time = p.timestamp ? new Date(p.timestamp).toLocaleString() : '—';
     document.getElementById('lightbox-meta').innerHTML = `
-    <strong>${uploader}</strong> (${source})<br>
-    🏷️ ${event} • 🕐 ${time}
+    <strong>${p.uploadedBy || '—'}</strong> (${p.source || 'direct'})<br>
+    🏷️ ${p.event || ''} • 🕐 ${time}
   `;
 
     const deleteBtn = document.getElementById('lightbox-delete-btn');
     deleteBtn.style.display = 'block';
-    deleteBtn.onclick = async () => {
+    deleteBtn.onclick = () => {
         if (!confirm('Delete this photo from gallery?')) return;
-        try {
-            await db.collection('photos').doc(docId).delete();
-            closeModal('gallery-lightbox');
-            showSnack('🗑 Photo deleted');
-            loadGalleryTab();
-        } catch (e) {
-            showSnack('❌ Delete failed');
-        }
+        deletePhotoLocal(docId);
+        closeModal('gallery-lightbox');
+        showSnack('🗑 Photo deleted');
+        loadGalleryTab();
     };
 
     document.getElementById('gallery-lightbox').classList.add('visible');
 }
 
 /* ==================== STATS TAB ==================== */
-async function loadStats() {
+function loadStats() {
     const container = document.getElementById('stats-cards');
-    if (!db) { container.innerHTML = '<div class="empty-state">Firebase not connected</div>'; return; }
+    const stats = getStatsData();
 
-    try {
-        const [guestsSnap, photosSnap, pendingSnap, engSnap, haldiSnap, weddingSnap] = await Promise.all([
-            db.collection('guests').get(),
-            db.collection('photos').where('approved', '==', true).get(),
-            db.collection('whatsapp_submissions').where('status', '==', 'pending').get(),
-            db.collection('photos').where('event', '==', 'engagement').where('approved', '==', true).get(),
-            db.collection('photos').where('event', '==', 'haldi').where('approved', '==', true).get(),
-            db.collection('photos').where('event', '==', 'wedding').where('approved', '==', true).get(),
-        ]);
-
-        container.innerHTML = `
-      <div class="stat-card"><div class="stat-card-value">${guestsSnap.size}</div><div class="stat-card-label">Total Guests</div></div>
-      <div class="stat-card"><div class="stat-card-value">${photosSnap.size}</div><div class="stat-card-label">Gallery Photos</div></div>
-      <div class="stat-card"><div class="stat-card-value">${pendingSnap.size}</div><div class="stat-card-label">Pending Review</div></div>
-      <div class="stat-card"><div class="stat-card-value">${engSnap.size}</div><div class="stat-card-label">Engagement</div></div>
-      <div class="stat-card"><div class="stat-card-value">${haldiSnap.size}</div><div class="stat-card-label">Haldi & Sangeet</div></div>
-      <div class="stat-card"><div class="stat-card-value">${weddingSnap.size}</div><div class="stat-card-label">Wedding</div></div>
+    container.innerHTML = `
+      <div class="stat-card"><div class="stat-card-value">${stats.totalGuests}</div><div class="stat-card-label">Total Guests</div></div>
+      <div class="stat-card"><div class="stat-card-value">${stats.totalPhotos}</div><div class="stat-card-label">Gallery Photos</div></div>
+      <div class="stat-card"><div class="stat-card-value">${stats.pendingReview}</div><div class="stat-card-label">Pending Review</div></div>
+      <div class="stat-card"><div class="stat-card-value">${stats.engagementPhotos}</div><div class="stat-card-label">Engagement</div></div>
+      <div class="stat-card"><div class="stat-card-value">${stats.haldiPhotos}</div><div class="stat-card-label">Haldi & Sangeet</div></div>
+      <div class="stat-card"><div class="stat-card-value">${stats.weddingPhotos}</div><div class="stat-card-label">Wedding</div></div>
     `;
 
-        // Recent logins
-        const logsSnap = await db.collection('access_logs').orderBy('timestamp', 'desc').limit(5).get();
-        if (!logsSnap.empty) {
-            const section = document.getElementById('recent-logins-section');
-            section.style.display = 'block';
-            document.getElementById('recent-logins').innerHTML = logsSnap.docs.map(doc => {
-                const d = doc.data();
-                const time = d.timestamp ? d.timestamp.toDate().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-                return `<div class="login-row"><span>${d.name || d.phone}</span><span>${time}</span></div>`;
-            }).join('');
-        }
-    } catch (err) {
-        container.innerHTML = '<div class="empty-state">Error loading stats</div>';
+    // Recent logins
+    const logs = getAccessLogs(5);
+    if (logs.length > 0) {
+        const section = document.getElementById('recent-logins-section');
+        section.style.display = 'block';
+        document.getElementById('recent-logins').innerHTML = logs.map(d => {
+            const time = d.timestamp ? new Date(d.timestamp).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+            return `<div class="login-row"><span>${d.name || d.phone}</span><span>${time}</span></div>`;
+        }).join('');
     }
 }
 
@@ -529,10 +478,10 @@ function showSnack(text, showUndo = false) {
 
 function hideSnack() { document.getElementById('admin-snackbar').classList.remove('visible'); }
 
-async function undoLastAction() {
+function undoLastAction() {
     if (!undoData) return;
     clearTimeout(undoTimer);
-    await updateSubmissionStatus(undoData.docId, 'pending', null);
+    updateSubmissionStatus(undoData.docId, 'pending', null);
     hideSnack();
     showSnack('↩️ Undone');
     undoData = null;

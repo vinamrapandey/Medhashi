@@ -1,299 +1,222 @@
 /* ============================================
-   AS WEDDING — Firebase Configuration
+   AS WEDDING — Local Database (localStorage)
+   No Firebase — fully static, offline-first
    ============================================ */
 
-// TODO: Replace with your actual Firebase project config
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY_HERE",
-    authDomain: "your-project.firebaseapp.com",
-    projectId: "your-project-id",
-    storageBucket: "your-project.appspot.com",
-    messagingSenderId: "123456789",
-    appId: "1:123456789:web:abcdef123456"
-};
+/* ---- Storage helpers ---- */
+function localGet(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || []; }
+    catch (e) { return []; }
+}
 
-// Firebase will be initialized after SDK loads
-let db = null;
+function localSet(key, data) {
+    try { localStorage.setItem(key, JSON.stringify(data)); }
+    catch (e) { console.error('localStorage write error:', e); }
+}
+
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+/* ---- "Database" initialization (no-op, kept for backward compat) ---- */
+let db = true; // truthy so existing !db guards still work
 let storage = null;
 
 function initFirebase() {
-    try {
-        // Check if Firebase SDK is loaded
-        if (typeof firebase === 'undefined') {
-            console.warn('Firebase SDK not loaded. Running in offline mode.');
-            return false;
-        }
-
-        // Initialize Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-
-        // Initialize Firestore
-        db = firebase.firestore();
-
-        // Enable offline persistence
-        db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-            if (err.code === 'failed-precondition') {
-                console.warn('Firestore persistence failed: Multiple tabs open.');
-            } else if (err.code === 'unimplemented') {
-                console.warn('Firestore persistence not available in this browser.');
-            }
-        });
-
-        // Initialize Storage
-        storage = firebase.storage();
-
-        console.log('Firebase initialized successfully.');
-        return true;
-    } catch (error) {
-        console.error('Firebase initialization error:', error);
-        return false;
-    }
+    // No-op — data lives in localStorage now
+    console.log('Local database active (localStorage).');
+    return true;
 }
 
-/* ---- Guest Lookup ---- */
-async function lookupGuest(phone) {
-    if (!db) {
-        console.warn('Firestore not available.');
-        // Demo mode: return a fake guest for testing
-        if (phone === '9999999999') {
-            return { name: 'Demo Guest', nameHindi: 'डेमो अतिथि', phone: '9999999999', events: ['engagement', 'haldi', 'wedding'], canUpload: true };
-        }
-        return null;
-    }
+/* ==================== GUESTS ==================== */
+function lookupGuest(phone) {
+    const guests = localGet('as_guests');
+    const guest = guests.find(g => g.phone === phone);
+    if (guest) return guest;
 
-    try {
-        const snapshot = await db.collection('guests')
-            .where('phone', '==', phone)
-            .limit(1)
-            .get();
-
-        if (snapshot.empty) return null;
-
-        const doc = snapshot.docs[0];
-        return { id: doc.id, ...doc.data() };
-    } catch (error) {
-        console.error('Guest lookup error:', error);
-        return null;
-    }
+    // Always allow any phone number for demo/wedding access
+    return { name: 'Guest', nameHindi: 'अतिथि', phone, events: ['engagement', 'haldi', 'wedding'], canUpload: true };
 }
 
-/* ---- Log Guest Access ---- */
-async function logGuestAccess(phone, name) {
-    if (!db) return;
-
-    try {
-        await db.collection('accessLog').add({
-            phone,
-            name,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            userAgent: navigator.userAgent
-        });
-    } catch (error) {
-        console.error('Access log error:', error);
-    }
+function logGuestAccess(phone, name) {
+    const logs = localGet('as_access_logs');
+    logs.unshift({ phone, name, timestamp: new Date().toISOString(), userAgent: navigator.userAgent });
+    if (logs.length > 100) logs.length = 100; // cap
+    localSet('as_access_logs', logs);
 }
 
-/* ---- Photo Operations ---- */
-async function uploadPhoto(file, eventName, phone) {
-    if (!storage || !db) {
-        console.warn('Firebase not available for upload.');
-        return null;
-    }
-
-    const timestamp = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `photos/${eventName}/${phone}/${timestamp}_${safeName}`;
-    const storageRef = storage.ref(path);
-
-    try {
-        const uploadTask = await storageRef.put(file);
-        const url = await uploadTask.ref.getDownloadURL();
-
-        // Write metadata to Firestore
-        await db.collection('photos').add({
-            event: eventName,
-            uploadedBy: sessionStorage.getItem('guest_name') || 'Unknown',
-            phone,
-            url,
-            path,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            approved: true,
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type
-        });
-
-        return url;
-    } catch (error) {
-        console.error('Upload error:', error);
-        return null;
-    }
+/* ==================== GUEST CRUD (Admin) ==================== */
+function getAllGuests() {
+    return localGet('as_guests').sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
 
-async function getPhotos(eventName) {
-    if (!db) return [];
-
-    try {
-        const snapshot = await db.collection('photos')
-            .where('event', '==', eventName)
-            .where('approved', '==', true)
-            .orderBy('timestamp', 'desc')
-            .get();
-
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-        console.error('Get photos error:', error);
-        return [];
-    }
+function addGuestLocal(data) {
+    const guests = localGet('as_guests');
+    const guest = { id: generateId(), ...data, createdAt: new Date().toISOString() };
+    guests.push(guest);
+    localSet('as_guests', guests);
+    return guest;
 }
 
-async function checkUploadPermission(phone) {
-    if (!db) {
-        // Demo mode
-        if (phone === '9999999999') return true;
-        return false;
-    }
-
-    try {
-        const snapshot = await db.collection('guests')
-            .where('phone', '==', phone)
-            .limit(1)
-            .get();
-
-        if (snapshot.empty) return false;
-        return snapshot.docs[0].data().canUpload === true;
-    } catch (error) {
-        console.error('Permission check error:', error);
-        return false;
-    }
+function removeGuestLocal(id) {
+    const guests = localGet('as_guests').filter(g => g.id !== id);
+    localSet('as_guests', guests);
 }
 
-/* ---- WhatsApp Submissions ---- */
-async function createWhatsAppSubmission(data) {
-    if (!db) {
-        console.warn('Firestore not available.');
-        return null;
+function importGuestsLocal(newGuests) {
+    const guests = localGet('as_guests');
+    for (const g of newGuests) {
+        guests.push({ id: generateId(), ...g, createdAt: new Date().toISOString() });
     }
-
-    try {
-        const docRef = await db.collection('whatsapp_submissions').add({
-            senderName: data.senderName || '',
-            senderPhone: data.senderPhone || '',
-            eventTag: data.eventTag || '',
-            mediaUrls: data.mediaUrls || [],
-            receivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            status: 'pending',
-            reviewedAt: null,
-            reviewedBy: null,
-            note: null
-        });
-        return docRef.id;
-    } catch (error) {
-        console.error('Create WA submission error:', error);
-        return null;
-    }
+    localSet('as_guests', guests);
+    return newGuests.length;
 }
 
-async function getWhatsAppSubmissions(statusFilter, eventFilter) {
-    if (!db) return [];
-
-    try {
-        let query = db.collection('whatsapp_submissions')
-            .orderBy('receivedAt', 'desc');
-
-        if (statusFilter && statusFilter !== 'all') {
-            query = query.where('status', '==', statusFilter);
-        }
-        if (eventFilter && eventFilter !== 'all') {
-            query = query.where('eventTag', '==', eventFilter);
-        }
-
-        const snapshot = await query.limit(200).get();
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) {
-        console.error('Get WA submissions error:', error);
-        return [];
-    }
-}
-
-async function updateSubmissionStatus(docId, status, reviewedBy) {
-    if (!db) return false;
-
-    try {
-        await db.collection('whatsapp_submissions').doc(docId).update({
-            status,
-            reviewedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            reviewedBy: reviewedBy || 'admin'
-        });
-        return true;
-    } catch (error) {
-        console.error('Update submission error:', error);
-        return false;
-    }
-}
-
-async function approveAndCopyToGallery(submission) {
-    if (!db) return false;
-
-    try {
-        // Update submission status
-        await updateSubmissionStatus(submission.id, 'approved', 'admin');
-
-        // Copy each media URL to the photos collection
-        const urls = submission.mediaUrls || [];
-        for (const url of urls) {
-            await db.collection('photos').add({
-                event: submission.eventTag,
-                uploadedBy: submission.senderName || 'WhatsApp Guest',
-                phone: submission.senderPhone || '',
+/* ==================== PHOTOS ==================== */
+function uploadPhoto(file, eventName, phone) {
+    // For local mode, store as data URL
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const url = reader.result;
+            const photos = localGet('as_photos');
+            photos.unshift({
+                id: generateId(),
+                event: eventName,
+                uploadedBy: sessionStorage.getItem('guest_name') || 'Unknown',
+                phone,
                 url,
-                source: 'whatsapp',
+                timestamp: new Date().toISOString(),
                 approved: true,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                submissionId: submission.id,
-                fileName: '',
-                fileSize: 0,
-                fileType: 'image/jpeg'
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                source: 'direct'
             });
-        }
-        return true;
-    } catch (error) {
-        console.error('Approve + copy error:', error);
-        return false;
-    }
+            localSet('as_photos', photos);
+            resolve(url);
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+    });
 }
 
-async function bulkUploadToReviewQueue(files, senderName, senderPhone, eventTag) {
-    if (!storage || !db) {
-        console.warn('Firebase not available for bulk upload.');
-        return null;
+function getPhotos(eventName) {
+    const photos = localGet('as_photos');
+    return photos.filter(p => p.event === eventName && p.approved);
+}
+
+function checkUploadPermission(phone) {
+    const guests = localGet('as_guests');
+    const guest = guests.find(g => g.phone === phone);
+    return guest ? guest.canUpload !== false : true; // default allow
+}
+
+function deletePhotoLocal(id) {
+    const photos = localGet('as_photos').filter(p => p.id !== id);
+    localSet('as_photos', photos);
+}
+
+/* ==================== WHATSAPP SUBMISSIONS ==================== */
+function createWhatsAppSubmission(data) {
+    const submissions = localGet('as_wa_submissions');
+    const sub = {
+        id: generateId(),
+        senderName: data.senderName || '',
+        senderPhone: data.senderPhone || '',
+        eventTag: data.eventTag || '',
+        mediaUrls: data.mediaUrls || [],
+        receivedAt: new Date().toISOString(),
+        status: 'pending',
+        reviewedAt: null,
+        reviewedBy: null,
+        note: null
+    };
+    submissions.unshift(sub);
+    localSet('as_wa_submissions', submissions);
+    return sub.id;
+}
+
+function getWhatsAppSubmissions(statusFilter, eventFilter) {
+    let subs = localGet('as_wa_submissions');
+    if (statusFilter && statusFilter !== 'all') subs = subs.filter(s => s.status === statusFilter);
+    if (eventFilter && eventFilter !== 'all') subs = subs.filter(s => s.eventTag === eventFilter);
+    return subs;
+}
+
+function updateSubmissionStatus(docId, status, reviewedBy) {
+    const subs = localGet('as_wa_submissions');
+    const idx = subs.findIndex(s => s.id === docId);
+    if (idx === -1) return false;
+    subs[idx].status = status;
+    subs[idx].reviewedAt = new Date().toISOString();
+    subs[idx].reviewedBy = reviewedBy || 'admin';
+    localSet('as_wa_submissions', subs);
+    return true;
+}
+
+function approveAndCopyToGallery(submission) {
+    updateSubmissionStatus(submission.id, 'approved', 'admin');
+    const photos = localGet('as_photos');
+    const urls = submission.mediaUrls || [];
+    for (const url of urls) {
+        photos.unshift({
+            id: generateId(),
+            event: submission.eventTag,
+            uploadedBy: submission.senderName || 'WhatsApp Guest',
+            phone: submission.senderPhone || '',
+            url,
+            source: 'whatsapp',
+            approved: true,
+            timestamp: new Date().toISOString(),
+            submissionId: submission.id,
+            fileName: '',
+            fileSize: 0,
+            fileType: 'image/jpeg'
+        });
     }
+    localSet('as_photos', photos);
+    return true;
+}
 
-    const mediaUrls = [];
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const timestamp = Date.now();
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const path = `whatsapp_submissions/${eventTag}/${senderPhone}/${timestamp}_${safeName}`;
-        const storageRef = storage.ref(path);
+function bulkUploadToReviewQueue(files, senderName, senderPhone, eventTag) {
+    return new Promise((resolve) => {
+        const mediaUrls = [];
+        let done = 0;
+        if (files.length === 0) { resolve(null); return; }
 
-        try {
-            const uploadTask = await storageRef.put(file);
-            const url = await uploadTask.ref.getDownloadURL();
-            mediaUrls.push(url);
-        } catch (err) {
-            console.error(`Upload failed for ${file.name}:`, err);
+        for (const file of files) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                mediaUrls.push(reader.result);
+                done++;
+                if (done === files.length) {
+                    const id = createWhatsAppSubmission({ senderName, senderPhone, eventTag, mediaUrls });
+                    resolve(id);
+                }
+            };
+            reader.onerror = () => { done++; if (done === files.length) resolve(mediaUrls.length > 0 ? 'ok' : null); };
+            reader.readAsDataURL(file);
         }
-    }
-
-    if (mediaUrls.length === 0) return null;
-
-    return createWhatsAppSubmission({
-        senderName,
-        senderPhone,
-        eventTag,
-        mediaUrls
     });
+}
+
+/* ==================== STATS HELPERS ==================== */
+function getAccessLogs(limit) {
+    const logs = localGet('as_access_logs');
+    return logs.slice(0, limit || 5);
+}
+
+function getStatsData() {
+    const guests = localGet('as_guests');
+    const photos = localGet('as_photos').filter(p => p.approved);
+    const subs = localGet('as_wa_submissions');
+    return {
+        totalGuests: guests.length,
+        totalPhotos: photos.length,
+        pendingReview: subs.filter(s => s.status === 'pending').length,
+        engagementPhotos: photos.filter(p => p.event === 'engagement').length,
+        haldiPhotos: photos.filter(p => p.event === 'haldi').length,
+        weddingPhotos: photos.filter(p => p.event === 'wedding').length
+    };
 }
