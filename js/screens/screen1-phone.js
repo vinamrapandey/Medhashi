@@ -63,9 +63,7 @@ async function handlePhoneSubmit(e) {
 
   // Validate
   if (!/^\d{10}$/.test(phone)) {
-    errorEl.textContent = getLang() === 'hi'
-      ? 'कृपया 10 अंकों का मान्य फ़ोन नंबर दर्ज करें'
-      : 'Please enter a valid 10-digit phone number';
+    errorEl.textContent = t('phoneErrorInvalid');
     errorEl.style.display = 'block';
     input.classList.add('input-error');
     return;
@@ -98,8 +96,8 @@ async function handlePhoneSubmit(e) {
         : STRINGS.phoneWelcome.en(guest.name);
       showToast(welcomeMsg);
 
-      // Navigate to story onboarding instantly
-      navigateTo('screen-story', { skipLoader: true });
+      // Navigate to couple meet animation instantly
+      navigateTo('screen-couple-meet', { skipLoader: true });
     } else {
       // Guest not found
       errorEl.textContent = t('phoneErrorNotFound');
@@ -110,9 +108,7 @@ async function handlePhoneSubmit(e) {
     }
   } catch (error) {
     console.error('Phone verification error:', error);
-    errorEl.textContent = getLang() === 'hi'
-      ? 'कुछ गलत हो गया। कृपया पुनः प्रयास करें।'
-      : 'Something went wrong. Please try again.';
+    errorEl.textContent = t('phoneErrorGeneric');
     errorEl.style.display = 'block';
     submitBtn.disabled = false;
     submitBtn.textContent = t('phoneContinue');

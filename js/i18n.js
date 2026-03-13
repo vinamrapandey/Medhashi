@@ -31,6 +31,14 @@ const STRINGS = {
     en: "This number isn't on our guest list. Please contact the family.",
     hi: 'यह नंबर हमारी अतिथि सूची में नहीं है। कृपया परिवार से संपर्क करें।'
   },
+  phoneErrorInvalid: {
+    en: 'Please enter a valid 10-digit phone number',
+    hi: 'कृपया 10 अंकों का मान्य फ़ोन नंबर दर्ज करें'
+  },
+  phoneErrorGeneric: {
+    en: 'Something went wrong. Please try again.',
+    hi: 'कुछ गलत हो गया। कृपया पुनः प्रयास करें।'
+  },
   phoneWelcome: {
     en: (name) => `Welcome, ${name}! 🌸`,
     hi: (name) => `स्वागत है, ${name}! 🌸`
@@ -277,9 +285,17 @@ const STRINGS = {
     en: 'Photos sent via WhatsApp will appear in the gallery after admin review.',
     hi: 'व्हाट्सऐप से भेजी गई तस्वीरें समीक्षा के बाद गैलरी में दिखेंगी।'
   },
+  sharePhotosBtn: {
+    en: 'Share Your Photos 📸',
+    hi: 'अपनी तस्वीरें साझा करें 📸'
+  },
+  sharePhotosNote: {
+    en: 'Photos will appear in the gallery after review.',
+    hi: 'तस्वीरें समीक्षा के बाद गैलरी में दिखेंगी।'
+  },
   waPrefilledMsg: {
-    en: (eventName) => `Hi! I am sending my photos from ${eventName}. My name is: `,
-    hi: (eventName) => `नमस्ते! मैं ${eventName} की तस्वीरें भेज रहा/रही हूँ। मेरा नाम है: `
+    en: (eventName) => `Hi! I am sharing my photos from ${eventName}. My name is: `,
+    hi: (eventName) => `नमस्ते! मैं ${eventName} की तस्वीरें साझा कर रहा/रही हूँ। मेरा नाम है: `
   },
   sharedBy: {
     en: (name) => `Shared by ${name}`,
