@@ -111,9 +111,6 @@ function initScreen(screenId) {
         case 'screen-phone':
             renderPhoneScreen();
             break;
-        case 'screen-couple-meet':
-            renderCoupleMeetScreen();
-            break;
         case 'screen-story':
             renderStoryScreen();
             break;

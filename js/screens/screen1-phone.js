@@ -96,8 +96,8 @@ async function handlePhoneSubmit(e) {
         : STRINGS.phoneWelcome.en(guest.name);
       showToast(welcomeMsg);
 
-      // Navigate to couple meet animation instantly
-      navigateTo('screen-couple-meet', { skipLoader: true });
+      // Navigate to story onboarding instantly
+      navigateTo('screen-story', { skipLoader: true });
     } else {
       // Guest not found
       errorEl.textContent = t('phoneErrorNotFound');
