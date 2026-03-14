@@ -88,36 +88,27 @@ function renderStoryScreen() {
       </div>
     </div>
 
-    <!-- Slide 3: Events -->
-    <div class="story-slide slide-events" id="story-slide-2">
-      <h2 class="story-events-heading ${isHindi ? 'text-hindi' : ''}">${t('storyCelebrations')}</h2>
-      <div class="story-event-cards">
-        <div class="story-event-card story-event-card-engagement" onclick="storyOpenEvent('engagement')">
-          <div class="story-event-icon">${events.engagement.icon}</div>
-          <div class="story-event-info">
-            <div class="story-event-title ${isHindi ? 'text-hindi' : ''}">${events.engagement.title[lang]}</div>
-            <div class="story-event-date ${isHindi ? 'text-hindi' : ''}">${events.engagement.dateFormatted[lang]}</div>
-          </div>
-          <span class="story-event-arrow">→</span>
+    <!-- Slide 3: Video -->
+    <div class="story-slide slide-video" id="story-slide-2">
+      <div id="story-video-container">
+        <!-- Loader shown while video buffers -->
+        <div id="couple-video-loader" class="monogram-loader">
+          <span>A ✦ S</span>
         </div>
-        <div class="story-event-card story-event-card-haldi" onclick="storyOpenEvent('haldi')">
-          <div class="story-event-icon">${events.haldi.icon}</div>
-          <div class="story-event-info">
-            <div class="story-event-title ${isHindi ? 'text-hindi' : ''}">${events.haldi.title[lang]}</div>
-            <div class="story-event-date ${isHindi ? 'text-hindi' : ''}">${events.haldi.dateFormatted[lang]}</div>
-          </div>
-          <span class="story-event-arrow">→</span>
-        </div>
-        <div class="story-event-card story-event-card-wedding" onclick="storyOpenEvent('wedding')">
-          <div class="story-event-icon">${events.wedding.icon}</div>
-          <div class="story-event-info">
-            <div class="story-event-title ${isHindi ? 'text-hindi' : ''}">${events.wedding.title[lang]}</div>
-            <div class="story-event-date ${isHindi ? 'text-hindi' : ''}">${events.wedding.dateFormatted[lang]}</div>
-          </div>
-          <span class="story-event-arrow">→</span>
-        </div>
+        <!-- Main video -->
+        <video
+          id="coupleVideo"
+          playsinline
+          muted
+          preload="metadata"
+          poster="assets/video/couple-poster.png">
+          <source src="assets/video/couple-animation.mp4" type="video/mp4">
+        </video>
       </div>
     </div>
+
+    <!-- Global Skip button -->
+    <button id="story-skip-btn" onclick="exitStory()">Skip &rarr;</button>
 
     <!-- Nav controls -->
     <button class="story-nav story-nav-prev hidden" id="story-prev" onclick="storyPrev()">‹</button>
@@ -165,6 +156,37 @@ function initStoryControls() {
 
   // Keyboard
   document.addEventListener('keydown', handleStoryKey);
+
+  // Video and Loading logic
+  const video = document.getElementById('coupleVideo');
+  const loader = document.getElementById('couple-video-loader');
+  
+  if (video && loader) {
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const isSlow = connection && ['slow-2g', '2g'].includes(connection.effectiveType);
+
+    if (isSlow) {
+      // Don't auto-handle buffering issues. Just hide loader.
+      loader.style.display = 'none';
+      return; 
+    }
+
+    const fallbackTimer = setTimeout(() => {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.style.display = 'none', 400);
+    }, 6000);
+
+    video.addEventListener('canplay', () => {
+        clearTimeout(fallbackTimer);
+        loader.style.opacity = '0';
+        setTimeout(() => loader.style.display = 'none', 400);
+    });
+
+    video.addEventListener('ended', () => {
+        // Only automatically proceed if user wants it, or we leave them.
+        setTimeout(exitStory, 500); 
+    });
+  }
 }
 
 function handleStoryKey(e) {
@@ -236,6 +258,16 @@ function goToSlide(idx) {
     prevBtn.classList.remove('hidden');
     nextBtn.classList.add('hidden');
     beginBtn.style.display = 'block';
+  }
+
+  // Handle video play/pause
+  const video = document.getElementById('coupleVideo');
+  if (video) {
+    if (idx === 2) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
   }
 
   storyCurrentSlide = idx;

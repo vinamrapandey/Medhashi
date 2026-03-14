@@ -139,6 +139,30 @@
     cursor: pointer;
 }
 
+/* ================ GLOBAL SKIP BUTTON ================ */
+#story-skip-btn {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.2rem;
+  z-index: 50; /* Needs to sit above slides and tap zones */
+  background: rgba(250, 247, 242, 0.75);
+  border: 1px solid #C9A84C;
+  color: #C9A84C;
+  font-size: 0.78rem;
+  font-family: inherit;
+  padding: 0.35rem 0.85rem;
+  border-radius: 2rem;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+#story-skip-btn:hover,
+#story-skip-btn:active {
+  background: #C9A84C;
+  color: #ffffff;
+}
+
 .story-tap-left {
     left: 0;
     width: 40%;
@@ -388,104 +412,48 @@
 }
 
 /* ============================================================
-   SLIDE 3: EVENTS PREVIEW
+   SLIDE 3: VIDEO BACKGROUND
    ============================================================ */
-.slide-events {
-    background: radial-gradient(ellipse at 50% 30%, #FAF7F2 0%, #F5EFE6 100%);
-    padding-top: 36px;
-    justify-content: flex-start;
+.slide-video {
+    background: #FAF7F2;
+    padding: 0;
 }
 
-.slide-events .story-events-heading {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.4rem;
-    color: #2C1810;
-    margin-bottom: 20px;
-    opacity: 0;
-    animation: storyFadeUp 0.5s 0.2s ease forwards;
-}
-
-.story-event-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+#story-video-container {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    max-width: 360px;
+    height: 100%;
+    overflow: hidden;
 }
 
-.story-event-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
-    background: white;
-    border-radius: 14px;
-    border: 1px solid rgba(201, 168, 76, 0.2);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    opacity: 0;
+#coupleVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
-.story-event-card:nth-child(1) {
-    animation: storyFadeUp 0.5s 0.4s ease forwards;
-}
-
-.story-event-card:nth-child(2) {
-    animation: storyFadeUp 0.5s 0.6s ease forwards;
-}
-
-.story-event-card:nth-child(3) {
-    animation: storyFadeUp 0.5s 0.8s ease forwards;
-}
-
-.story-event-card:active {
-    transform: scale(0.97);
-}
-
-.story-event-icon {
-    font-size: 1.6rem;
-    width: 44px;
-    height: 44px;
+#couple-video-loader {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 12px;
-    flex-shrink: 0;
+    background-color: #FAF7F2;
+    z-index: 10;
+    transition: opacity 0.4s ease;
 }
 
-.story-event-card-engagement .story-event-icon {
-    background: rgba(201, 164, 160, 0.15);
-}
-
-.story-event-card-haldi .story-event-icon {
-    background: rgba(218, 165, 32, 0.12);
-}
-
-.story-event-card-wedding .story-event-icon {
-    background: rgba(107, 39, 55, 0.1);
-}
-
-.story-event-info {
-    flex: 1;
-    text-align: left;
-}
-
-.story-event-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #2C1810;
-    margin-bottom: 2px;
-}
-
-.story-event-date {
-    font-size: 0.75rem;
-    color: #8B7355;
-}
-
-.story-event-arrow {
+#couple-video-loader span {
+    font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+    font-size: 2rem;
     color: #C9A84C;
-    font-size: 1.1rem;
-    opacity: 0.6;
+    letter-spacing: 0.3em;
+    animation: monogramPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes monogramPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.96); }
 }
