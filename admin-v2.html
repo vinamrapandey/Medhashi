@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medhashi Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0F0F0F;
+      --surface: #1A1A1A;
+      --surface2: #222222;
+      --surface3: #2A2A2A;
+      --border: #2E2E2E;
+      --border2: #3A3A3A;
+      --gold: #C9A84C;
+      --gold-dim: rgba(201,168,76,0.15);
+      --gold-border: rgba(201,168,76,0.3);
+      --text1: #F0EBE3;
+      --text2: #9B8E82;
+      --text3: #5A5248;
+      --red: #E05252;
+      --red-dim: rgba(224,82,82,0.12);
+      --green: #4CAF82;
+      --green-dim: rgba(76,175,130,0.12);
+      --radius: 10px;
+      --radius-lg: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text1);
+      font-family: 'Jost', sans-serif; font-size: 14px; line-height: 1.6;
+      height: 100vh; overflow: hidden;
+    }
+    h1, h2, h3, h4, .serif { font-family: 'Playfair Display', serif; }
+    
+    input, button, select, textarea { font-family: inherit; }
+    button { cursor: pointer; border: none; background: none; }
+    input:focus, textarea:focus { outline: none; border-color: var(--gold); }
+    
+    /* Layout States */
+    #app { display: flex; width: 100vw; height: 100vh; }
+    .hidden { display: none !important; }
+
+    /* Login State */
+    #login-state {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; height: 100%;
+    }
+    .login-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 40px 32px;
+      width: 100%; max-width: 360px; text-align: center;
+    }
+    .login-logo { font-size: 36px; color: var(--gold); }
+    .login-sub { font-size: 13px; color: var(--text2); margin-bottom: 32px; }
+    .login-input {
+      width: 100%; padding: 12px 16px; background: var(--surface3);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text1); font-size: 15px; text-align: center; letter-spacing: 2px;
+      transition: border-color 0.2s;
+    }
+    .login-btn {
+      width: 100%; margin-top: 12px; background: var(--gold);
+      color: #111; font-weight: 600; padding: 13px; border-radius: var(--radius);
+      transition: opacity 0.2s;
+    }
+    .login-btn:hover { opacity: 0.9; }
+    .login-error { color: var(--red); font-size: 12px; margin-top: 8px; }
+
+    /* Dashboard Layout */
+    .sidebar {
+      width: 260px; height: 100vh; background: var(--surface);
+      border-right: 1px solid var(--border); padding: 0;
+      display: flex; flex-direction: column; position: relative;
+    }
+    .sidebar-top { padding: 24px 20px 16px; border-bottom: 1px solid var(--border); }
+    .sidebar-logo { font-size: 20px; color: var(--gold); }
+    .sidebar-ws-name { font-size: 13px; color: var(--text2); }
+    .nav-list { padding: 8px; flex: 1; overflow-y: auto; }
+    .nav-item {
+      padding: 10px 14px; border-radius: var(--radius); display: flex;
+      align-items: center; gap: 12px; color: var(--text2); font-size: 13px;
+      margin-bottom: 2px; transition: all 0.2s; border: 1px solid transparent;
+    }
+    .nav-item:hover { background: var(--surface3); color: var(--text1); }
+    .nav-item.active {
+      background: var(--gold-dim); color: var(--gold); border-color: var(--gold-border);
+    }
+    .badge {
+      background: var(--red); color: white; border-radius: 99px;
+      padding: 2px 6px; font-size: 10px; font-weight: 600; margin-left: auto;
+    }
+    .sidebar-bottom { position: absolute; bottom: 8px; left: 8px; right: 8px; }
+    .sign-out { color: var(--red); width: 100%; justify-content: flex-start; }
+    .sign-out:hover { background: var(--red-dim); color: var(--red); }
+
+    .main-content {
+      flex: 1; height: 100vh; overflow-y: auto; padding: 32px;
+      background: var(--bg); position: relative;
+    }
+    .content-container { max-width: 1100px; margin: 0 auto; }
+    .page-title { font-size: 26px; color: var(--text1); }
+    .page-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px;}
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+    /* Overview Tab */
+    .stats-grid { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); margin-top: 24px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 20px 24px;
+    }
+    .stat-val { font-size: 36px; color: var(--gold); line-height: 1; }
+    .stat-lbl { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-top: 8px; }
+    .recent-header { font-size: 16px; margin-top: 32px; margin-bottom: 16px;}
+    .table-wrapper { 
+      background: var(--surface); border: 1px solid var(--border); 
+      border-radius: var(--radius-lg); overflow: hidden; 
+    }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { padding: 12px 16px; color: var(--text2); font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface3); }
+
+    /* Guests Tab */
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .btn-gold { background: var(--gold); color: #111; padding: 8px 16px; border-radius: var(--radius); font-weight: 500; }
+    .btn-outline { border: 1px solid var(--border); color: var(--text1); padding: 8px 16px; border-radius: var(--radius); }
+    .btn-outline:hover { background: var(--surface3); }
+    .btn-row { display: flex; gap: 8px; }
+    .filter-bar { display: flex; gap: 12px; margin-bottom: 16px; }
+    .search-input { 
+      flex: 1; background: var(--surface3); border: 1px solid var(--border);
+      padding: 9px 14px; border-radius: var(--radius); color: var(--text1);
+    }
+    .pill {
+      background: var(--surface3); color: var(--text2); padding: 7px 14px;
+      border-radius: 999px; font-size: 12px; cursor: pointer; border: 1px solid transparent;
+    }
+    .pill.active { background: var(--gold); color: #111; }
+    .event-badge {
+      background: var(--surface3); color: var(--text2); font-size: 11px;
+      padding: 3px 8px; border-radius: 999px; margin-right: 4px; border: 1px solid transparent;
+    }
+    .event-badge.active { background: var(--gold-dim); color: var(--gold); border-color: var(--gold-border); }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot.green { background: var(--green); }
+    .dot.gray { background: var(--text3); }
+
+    /* Review Tab */
+    .card-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); }
+    .review-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden;
+    }
+    .review-img { aspect-ratio: 4/3; background: var(--surface2); width: 100%; object-fit: cover; }
+    .review-info { padding: 12px 14px; }
+    .review-row1 { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 500; }
+    .review-row2 { font-size: 12px; color: var(--text2); }
+    .review-row3 { font-size: 11px; color: var(--text3); }
+    .review-actions { padding: 0 14px 14px; display: flex; gap: 8px; }
+    .btn-reject { background: var(--red-dim); color: var(--red); border: 1px solid rgba(224,82,82,0.3); flex: 1; padding: 8px; border-radius: var(--radius); }
+    .btn-approve { background: var(--green-dim); color: var(--green); border: 1px solid rgba(76,175,130,0.3); flex: 1; padding: 8px; border-radius: var(--radius); }
+    .status-badge { padding: 4px 12px; border-radius: var(--radius); font-size: 12px; font-weight: 500; flex: 1; text-align: center; }
+    .status-badge.approved { background: var(--green-dim); color: var(--green); }
+    .status-badge.rejected { background: var(--red-dim); color: var(--red); }
+
+    /* Gallery Tab */
+    .masonry { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); align-items: start; }
+    .gallery-item { border-radius: var(--radius); overflow: hidden; cursor: pointer; position: relative; transition: transform 0.2s; }
+    .gallery-item:hover { transform: scale(1.02); }
+    .gallery-item img { width: 100%; height: auto; display: block; }
+    .gallery-attr { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.6); padding: 4px 8px; font-size: 11px; border-radius: 4px; }
+
+    /* Upload Tab */
+    .upload-card { background: var(--surface); border-radius: var(--radius-lg); padding: 28px; max-width: 560px; }
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .form-input { width: 100%; background: var(--surface3); border: 1px solid var(--border); padding: 10px 14px; border-radius: var(--radius); color: var(--text1); }
+    .drop-zone {
+      border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 40px;
+      text-align: center; cursor: pointer; transition: border-color 0.2s; position: relative;
+    }
+    .drop-zone:hover { border-color: var(--gold); }
+    .drop-icon { font-size: 32px; }
+    .drop-text { font-size: 12px; color: var(--text2); margin-top: 8px; }
+    .drop-sub { font-size: 11px; color: var(--text3); }
+    input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .file-list { margin-top: 16px; }
+    .file-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; background: var(--surface2); border-radius: var(--radius); margin-bottom: 4px; font-size: 12px; }
+    .file-remove { color: var(--red); font-size: 16px; padding: 0 8px; cursor: pointer; }
+
+    /* Settings Tab */
+    .settings-form { max-width: 800px; padding-bottom: 80px; }
+    .settings-section { margin-bottom: 32px; }
+    .settings-section-title { font-size: 16px; font-family: 'Playfair Display', serif; margin-bottom: 16px; color: var(--gold); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .event-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .event-header { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+    .settings-bottom { position: fixed; bottom: 0; left: 260px; right: 0; padding: 20px 32px; background: var(--bg); border-top: 1px solid var(--border); z-index: 10; }
+
+    /* Modals & Toasts */
+    .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .overlay.active { opacity: 1; pointer-events: all; }
+    .modal { background: var(--surface); border-radius: var(--radius-lg); padding: 32px; width: 100%; max-width: 440px; transform: scale(0.95); transition: transform 0.2s; }
+    .overlay.active .modal { transform: scale(1); }
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 10px; }
+    .toast { background: var(--surface); padding: 12px 20px; border-radius: var(--radius); border: 1px solid var(--border); border-left: 4px solid var(--green); color: var(--text1); font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); animation: toastIn 0.3s forwards; }
+    .toast.error { border-left-color: var(--red); }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* Lightbox */
+    .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 100%; max-height: 85vh; object-fit: contain; }
+    .lightbox-info { margin-top: 16px; color: var(--text1); text-align: center; font-size: 13px; }
+    .close-btn { position: absolute; top: 24px; right: 24px; color: white; font-size: 32px; cursor: pointer; }
+
+    .event-editor-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+
+    .event-editor-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .event-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .event-editor-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      color: var(--text1);
+      font-weight: 600;
+    }
+
+    .settings-section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      color: var(--gold);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .settings-section-sub {
+      font-size: 13px;
+      color: var(--text2);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app">
+    <!-- Login State -->
+    <div id="login-state">
+      <div class="login-card">
+        <div class="login-logo serif">M ✦</div>
+        <div class="login-sub">Medhashi Admin</div>
+        <input type="password" id="login-pwd" class="login-input" placeholder="Enter password" onkeydown="if(event.key==='Enter') handleLogin()">
+        <button class="login-btn" onclick="handleLogin()">Login</button>
+        <div id="login-error" class="login-error"></div>
+      </div>
+    </div>
+
+    <!-- Dashboard State (hidden by default) -->
+    <div id="dashboard-state" class="hidden" style="display: flex; width: 100%;">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <div class="sidebar-logo serif">M ✦</div>
+          <div id="sidebar-ws" class="sidebar-ws-name"></div>
+        </div>
+        <div class="nav-list">
+          <div class="nav-item active" onclick="switchTab('overview')" data-tab="overview">📊 Overview</div>
+          <div class="nav-item" onclick="switchTab('guests')" data-tab="guests">👥 Guests</div>
+          <div class="nav-item" onclick="switchTab('review')" data-tab="review">📸 Review <span id="badge-pending" class="badge hidden">0</span></div>
+          <div class="nav-item" onclick="switchTab('gallery')" data-tab="gallery">🖼️ Gallery</div>
+          <div class="nav-item" onclick="switchTab('upload')" data-tab="upload">⬆️ Upload</div>
+          <div class="nav-item" onclick="switchTab('settings')" data-tab="settings">⚙️ Settings</div>
+        </div>
+        <div class="sidebar-bottom">
+          <div class="nav-item sign-out" onclick="handleSignOut()">🚪 Sign Out</div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div class="content-container">
+          <!-- Overview Tab -->
+          <div id="tab-overview" class="tab-panel active">
+            <h1 class="page-title">Overview</h1>
+            <div id="overview-sub" class="page-sub"></div>
+            
+            <div class="stats-grid">
+              <div class="stat-card"><div id="stat-guests" class="stat-val">-</div><div class="stat-lbl">Total Guests</div></div>
+              <div class="stat-card"><div id="stat-pending" class="stat-val">-</div><div class="stat-lbl">Pending Review</div></div>
+              <div class="stat-card"><div id="stat-approved" class="stat-val">-</div><div class="stat-lbl">Approved Photos</div></div>
+              <div class="stat-card"><div id="stat-eng" class="stat-val">-</div><div class="stat-lbl">Engagement Photos</div></div>
+              <div class="stat-card"><div id="stat-hal" class="stat-val">-</div><div class="stat-lbl">Haldi Photos</div></div>
+              <div class="stat-card"><div id="stat-wed" class="stat-val">-</div><div class="stat-lbl">Wedding Photos</div></div>
+            </div>
+          </div>
+
+          <!-- Guests Tab -->
+          <div id="tab-guests" class="tab-panel">
+            <div class="header-row">
+              <h1 class="page-title">Guests <span id="guest-count-badge" style="color:var(--text2); font-size:16px;"></span></h1>
+              <div class="btn-row">
+                <button class="btn-outline" onclick="openModal('importGuestModal')">Import CSV</button>
+                <button class="btn-gold" onclick="openAddGuest()">Add Guest</button>
+              </div>
+            </div>
+            
+            <div class="filter-bar">
+              <input type="text" id="guest-search" class="search-input" placeholder="Search name or phone..." oninput="handleGuestSearch()">
+              <button class="pill active" data-epill="all" onclick="setGuestEventFilter('all')">All</button>
+              <button class="pill" data-epill="engagement" onclick="setGuestEventFilter('engagement')">Engagement</button>
+              <button class="pill" data-epill="haldi" onclick="setGuestEventFilter('haldi')">Haldi</button>
+              <button class="pill" data-epill="wedding" onclick="setGuestEventFilter('wedding')">Wedding</button>
+            </div>
+
+            <div class="table-wrapper">
+              <table id="guests-table">
+                <thead><tr><th>Name</th><th>Phone</th><th>Events</th><th>Upload</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Review Tab -->
+          <div id="tab-review" class="tab-panel">
+            <div class="header-row">
+              <h1 class="page-title">Photo Review</h1>
+            </div>
+            <div class="filter-bar">
+              <select id="review-status-filter" class="form-input" style="width: auto;" onchange="loadReview()">
+                <option value="pending">Pending</option>
+                <option value="all">All Statuses</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <select id="review-event-filter" class="form-input" style="width: auto;" onchange="renderReview()">
+                <option value="all">All Events</option>
+                <option value="engagement">Engagement</option>
+                <option value="haldi">Haldi</option>
+                <option value="wedding">Wedding</option>
+              </select>
+            </div>
+            <div class="card-grid" id="review-grid"></div>
+          </div>
+
+          <!-- Gallery Tab -->
+          <div id="tab-gallery" class="tab-panel">
+            <div class="header-row">
+              <h1 class="page-title">Gallery</h1>
+            </div>
+            <div class="filter-bar">
+              <button class="pill active" data-gfilter="all" onclick="setGalleryFilter('all')">All</button>
+              <button class="pill" data-gfilter="engagement" onclick="setGalleryFilter('engagement')">Engagement</button>
+              <button class="pill" data-gfilter="haldi" onclick="setGalleryFilter('haldi')">Haldi</button>
+              <button class="pill" data-gfilter="wedding" onclick="setGalleryFilter('wedding')">Wedding</button>
+            </div>
+            <div class="masonry" id="gallery-grid"></div>
+          </div>
+
+          <!-- Upload Tab -->
+          <div id="tab-upload" class="tab-panel">
+            <h1 class="page-title">Upload Photos</h1>
+            <div class="page-sub">Add photos directly to the gallery on behalf of a guest</div>
+            
+            <div class="upload-card">
+              <div class="form-group">
+                <label class="form-label">Sender Name *</label>
+                <input type="text" id="up-name" class="form-input" placeholder="E.g. Admin Team">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Event *</label>
+                <select id="up-event" class="form-input">
+                  <option value="engagement">Engagement</option>
+                  <option value="haldi">Haldi & Sangeet</option>
+                  <option value="wedding">Wedding</option>
+                </select>
+              </div>
+              
+              <div class="drop-zone" id="up-drop">
+                <div class="drop-icon">⬆️</div>
+                <div class="drop-text">Click to select or drag files here</div>
+                <div class="drop-sub">Images and videos accepted</div>
+                <input type="file" id="up-file" multiple accept="image/*,video/*" onchange="handleFileSelect(event)">
+              </div>
+              
+              <div class="file-list" id="up-list"></div>
+              
+              <button class="btn-gold" style="width:100%; margin-top:20px;" onclick="uploadManual()">Upload to Gallery</button>
+            </div>
+          </div>
+
+          <!-- Settings Tab -->
+          <div id="tab-settings" class="tab-panel">
+            <h1 class="page-title">Wedding Settings</h1>
+            <div class="page-sub">Changes here reflect immediately on the guest app</div>
+            
+            <div class="settings-form" id="settingsForm"></div>
+            
+            <div class="settings-section" style="margin-top:32px">
+              <h2 class="settings-section-title">Events</h2>
+              <p class="settings-section-sub">
+                Edit dates, times and venue details for each function.
+                Changes reflect immediately on the guest app.
+              </p>
+              <div id="events-editor"></div>
+            </div>
+            
+            <div class="settings-bottom">
+              <button class="btn-gold" style="width:100%; max-width:400px;" onclick="saveSettings()">Save Settings</button>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <div class="overlay" id="guestModalOverlay" onclick="closeModal(event, 'guestModalOverlay')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h2 class="serif" id="guestModalTitle" style="margin-bottom:20px;">Add Guest</h2>
+      <input type="hidden" id="g-id">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="g-name" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input type="number" id="g-phone" class="form-input" placeholder="10 digits">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Events</label>
+        <div style="display:flex;gap:8px;">
+          <button class="pill" id="ge-engagement" onclick="toggleEventPill(this)">Engagement</button>
+          <button class="pill" id="ge-haldi" onclick="toggleEventPill(this)">Haldi</button>
+          <button class="pill" id="ge-wedding" onclick="toggleEventPill(this)">Wedding</button>
+        </div>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:12px;">
+        <label class="form-label" style="margin:0;">Can Upload Photos</label>
+        <input type="checkbox" id="g-upload">
+      </div>
+      <div class="btn-row" style="margin-top:24px;">
+        <button class="btn-outline" style="flex:1;" onclick="document.getElementById('guestModalOverlay').classList.remove('active')">Cancel</button>
+        <button class="btn-gold" style="flex:1;" onclick="saveGuest()">Save Guest</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="importModalOverlay" onclick="closeModal(event, 'importModalOverlay')">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:600px;">
+      <h2 class="serif" style="margin-bottom:16px;">Import CSV</h2>
+      <div style="background:var(--surface2);padding:12px;border-radius:var(--radius);font-family:monospace;font-size:12px;color:var(--text2);margin-bottom:16px;">
+        Format: name, phone, events, can_upload<br>
+        Events: pipe separated (engagement|haldi|wedding)<br>
+        Example: Raj Kumar, 9876543210, engagement|wedding, true
+      </div>
+      <textarea id="import-text" class="form-input" rows="8" placeholder="Paste data here..." style="font-family:monospace;"></textarea>
+      
+      <div class="btn-row" style="margin-top:24px;">
+        <button class="btn-outline" style="flex:1;" onclick="document.getElementById('importModalOverlay').classList.remove('active')">Cancel</button>
+        <button class="btn-gold" style="flex:1;" onclick="importGuests()">Import Valid Rows</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <span class="close-btn">&times;</span>
+    <img id="lb-img" onclick="event.stopPropagation()">
+    <div id="lb-info" class="lightbox-info"></div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script>
+    const API_BASE = 'https://medhashi-api.medhashi.workers.dev';
+    const state = { token: null, workspaceId: null, workspaceName: null, tab: 'overview', guests: [], submissions: [], gallery: [], stats: {}, config: {} };
+
+    window.onload = () => {
+      const stored = sessionStorage.getItem('admin_token');
+      if (stored) {
+        state.token = stored;
+        state.workspaceId = sessionStorage.getItem('admin_ws_id');
+        state.workspaceName = sessionStorage.getItem('admin_ws_name');
+        showDashboard();
+      }
+    };
+
+    async function api(method, path, body) {
+      const res = await fetch(API_BASE + path, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + state.token
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (!res.ok) {
+        let err = { error: 'API Error' };
+        try { err = await res.json(); } catch(e){}
+        throw new Error(err.error || 'API Error');
+      }
+      return res.json();
+    }
+
+    function showToast(message, type = 'success') {
+      const tc = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type === 'error' ? 'error' : ''}`;
+      toast.textContent = message;
+      tc.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function showDashboard() {
+      document.getElementById('login-state').classList.add('hidden');
+      document.getElementById('dashboard-state').classList.remove('hidden');
+      document.getElementById('sidebar-ws').textContent = state.workspaceName;
+      switchTab('overview');
+    }
+
+    async function handleLogin() {
+      const pin = document.getElementById('login-pwd').value;
+      if (!pin) return;
+      try {
+        const res = await fetch(API_BASE + '/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ workspaceId: 'medhashi-aands-2026', pin })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const tokenStr = data.token.replace('Bearer ', '');
+        const payload = JSON.parse(atob(tokenStr));
+        if (!payload.isAdmin) throw new Error('Not an admin account');
+        
+        sessionStorage.setItem('admin_token', data.token);
+        sessionStorage.setItem('admin_ws_id', data.workspaceId);
+        sessionStorage.setItem('admin_ws_name', data.workspaceName);
+        
+        state.token = data.token;
+        state.workspaceId = data.workspaceId;
+        state.workspaceName = data.workspaceName;
+        showDashboard();
+      } catch (e) {
+        document.getElementById('login-error').textContent = e.message || 'Login failed';
+      }
+    }
+
+    function handleSignOut() {
+      sessionStorage.clear();
+      state.token = null;
+      document.getElementById('login-state').classList.remove('hidden');
+      document.getElementById('dashboard-state').classList.add('hidden');
+      document.getElementById('login-pwd').value = '';
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.nav-item[data-tab]').forEach(el => el.classList.remove('active'));
+      const activeNav = document.querySelector(`.nav-item[data-tab="${tabName}"]`);
+      if(activeNav) activeNav.classList.add('active');
+      
+      document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabName).classList.add('active');
+      state.tab = tabName;
+
+      if (tabName === 'overview') loadOverview();
+      else if (tabName === 'guests') loadGuests();
+      else if (tabName === 'review') loadReview();
+      else if (tabName === 'gallery') loadGallery();
+      else if (tabName === 'settings') loadSettings();
+    }
+
+    async function loadOverview() {
+      try {
+        const data = await api('GET', '/api/stats');
+        document.getElementById('stat-guests').textContent = data.totalGuests;
+        document.getElementById('stat-pending').textContent = data.pendingReview;
+        document.getElementById('stat-approved').textContent = data.approvedPhotos;
+        
+        const badge = document.getElementById('badge-pending');
+        if (data.pendingReview > 0) { badge.textContent = data.pendingReview; badge.classList.remove('hidden'); }
+        else badge.classList.add('hidden');
+        
+        if (state.config && state.config.weddingDate) {
+           document.getElementById('overview-sub').textContent = state.workspaceName + ' • ' + state.config.weddingDate;
+        } else {
+           document.getElementById('overview-sub').textContent = state.workspaceName;
+        }
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    let currentGuestEventFilter = 'all';
+    async function loadGuests() {
+      try {
+        const data = await api('GET', '/api/guests');
+        state.guests = data.guests || [];
+        document.getElementById('guest-count-badge').textContent = `(${data.total || state.guests.length})`;
+        renderGuests();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    
+    function setGuestEventFilter(f) {
+      currentGuestEventFilter = f;
+      document.querySelectorAll('#tab-guests .pill').forEach(el => el.classList.remove('active'));
+      document.querySelector(`#tab-guests .pill[data-epill="${f}"]`).classList.add('active');
+      renderGuests();
+    }
+    
+    function handleGuestSearch() { renderGuests(); }
+    
+    function renderGuests() {
+      const tbody = document.querySelector('#guests-table tbody');
+      const search = document.getElementById('guest-search').value.toLowerCase();
+      
+      let filtered = state.guests.filter(g => {
+        if (search && !g.name.toLowerCase().includes(search) && !(g.phone||'').includes(search)) return false;
+        if (currentGuestEventFilter !== 'all') {
+          try {
+            const evts = JSON.parse(g.events || '[]');
+            if (!evts.includes(currentGuestEventFilter)) return false;
+          } catch(e) { return false; }
+        }
+        return true;
+      });
+      
+      tbody.innerHTML = filtered.map(g => {
+        let evts = []; try { evts = JSON.parse(g.events || '[]'); } catch(e){}
+        const eBadge = evts.includes('engagement') ? '<span class="event-badge active">E</span>' : '<span class="event-badge">E</span>';
+        const hBadge = evts.includes('haldi') ? '<span class="event-badge active">H</span>' : '<span class="event-badge">H</span>';
+        const wBadge = evts.includes('wedding') ? '<span class="event-badge active">W</span>' : '<span class="event-badge">W</span>';
+        const upDot = g.can_upload ? '<span class="dot green"></span>On' : '<span class="dot gray"></span>Off';
+        
+        return `<tr>
+          <td style="font-weight:500;">${g.name}</td>
+          <td style="color:var(--text2);">${g.phone || '-'}</td>
+          <td>${eBadge}${hBadge}${wBadge}</td>
+          <td>${upDot}</td>
+          <td>
+            <button onclick="editGuest('${g.id}')">✏️</button>
+            <button onclick="deleteGuest('${g.id}')">🗑️</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(e, id) { if(e) e.stopPropagation(); document.getElementById(id).classList.remove('active'); }
+    
+    function openAddGuest() {
+      document.getElementById('g-id').value = '';
+      document.getElementById('g-name').value = '';
+      document.getElementById('g-phone').value = '';
+      document.getElementById('g-upload').checked = true;
+      document.querySelectorAll('#guestModalOverlay .pill').forEach(p => p.classList.add('active'));
+      document.getElementById('guestModalTitle').textContent = 'Add Guest';
+      openModal('guestModalOverlay');
+    }
+    
+    function editGuest(id) {
+      const g = state.guests.find(x => x.id === id);
+      if(!g) return;
+      document.getElementById('g-id').value = g.id;
+      document.getElementById('g-name').value = g.name;
+      document.getElementById('g-phone').value = g.phone || '';
+      document.getElementById('g-upload').checked = !!g.can_upload;
+      let evts = []; try{ evts = JSON.parse(g.events||'[]'); }catch(e){}
+      document.getElementById('ge-engagement').className = 'pill ' + (evts.includes('engagement')?'active':'');
+      document.getElementById('ge-haldi').className = 'pill ' + (evts.includes('haldi')?'active':'');
+      document.getElementById('ge-wedding').className = 'pill ' + (evts.includes('wedding')?'active':'');
+      document.getElementById('guestModalTitle').textContent = 'Edit Guest';
+      openModal('guestModalOverlay');
+    }
+    
+    function toggleEventPill(btn) { btn.classList.toggle('active'); }
+    
+    async function saveGuest() {
+      const id = document.getElementById('g-id').value;
+      const name = document.getElementById('g-name').value;
+      const phone = document.getElementById('g-phone').value;
+      const can_upload = document.getElementById('g-upload').checked ? 1 : 0;
+      const evts = [];
+      if(document.getElementById('ge-engagement').classList.contains('active')) evts.push('engagement');
+      if(document.getElementById('ge-haldi').classList.contains('active')) evts.push('haldi');
+      if(document.getElementById('ge-wedding').classList.contains('active')) evts.push('wedding');
+      
+      if(!name) return showToast('Name is required', 'error');
+      if(phone && phone.length !== 10) return showToast('Phone must be 10 digits', 'error');
+      if(evts.length === 0) return showToast('Select at least one event', 'error');
+      
+      try {
+        if(id) {
+          await api('PUT', `/api/guests/${id}`, { name, phone, events: evts, can_upload });
+          showToast('Guest updated');
+        } else {
+          await api('POST', `/api/guests`, { name, phone, events: evts, can_upload });
+          showToast('Guest added');
+        }
+        closeModal(null, 'guestModalOverlay');
+        loadGuests();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    
+    async function deleteGuest(id) {
+      if(!confirm('Delete this guest?')) return;
+      try {
+        await api('DELETE', `/api/guests/${id}`);
+        showToast('Guest deleted');
+        loadGuests();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function importGuests() {
+       const text = document.getElementById('import-text').value;
+       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+       const toImport = [];
+       for(let l of lines) {
+         const parts = l.split(',');
+         if(parts.length >= 2) {
+           toImport.push({
+             name: parts[0].trim(),
+             phone: parts[1].trim(),
+             events: parts[2] ? parts[2].split('|').map(s=>s.trim()) : ['engagement','haldi','wedding'],
+             can_upload: parts[3] ? (parts[3].trim().toLowerCase()==='true'?1:0) : 1
+           });
+         }
+       }
+       if(!toImport.length) return showToast('No valid rows found', 'error');
+       try {
+         const res = await api('POST', '/api/guests/import', toImport);
+         showToast(`Imported ${res.count} guests`);
+         closeModal(null, 'importModalOverlay');
+         loadGuests();
+       } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function loadReview() {
+      try {
+        const statuses = document.getElementById('review-status-filter').value;
+        state.submissions = await api('GET', `/api/submissions?status=${statuses}`);
+        renderReview();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    
+    function renderReview() {
+      const grid = document.getElementById('review-grid');
+      const evtFilter = document.getElementById('review-event-filter').value;
+      
+      let filtered = state.submissions;
+      if(evtFilter !== 'all') filtered = filtered.filter(s => s.event_tag === evtFilter);
+      
+      grid.innerHTML = filtered.map(s => {
+        const isPending = s.status === 'pending';
+        const isApp = s.status === 'approved';
+        
+        return `<div class="review-card">
+          <div class="review-img" style="display:flex;align-items:center;justify-content:center;color:var(--text3);cursor:pointer;" onclick="openMedia('${s.id}')">
+            📷 Click to load image
+          </div>
+          <div class="review-info">
+            <div class="review-row1"><span>${s.sender_name}</span> <span class="event-badge active">${s.event_tag}</span></div>
+            <div class="review-row2">${s.sender_phone || 'No phone'}</div>
+            <div class="review-row3">${new Date(s.received_at).toLocaleString()}</div>
+          </div>
+          <div class="review-actions">
+            ${isPending ? `
+              <button class="btn-reject" onclick="reviewAction('${s.id}', 'reject')">Reject</button>
+              <button class="btn-approve" onclick="reviewAction('${s.id}', 'approve')">Approve</button>
+            ` : (isApp ? `<div class="status-badge approved">Approved</div>` : `<div class="status-badge rejected">Rejected</div><button class="btn-outline" onclick="reviewAction('${s.id}','reset')">Reset</button>`)}
+          </div>
+        </div>`;
+      }).join('');
+    }
+    
+    async function reviewAction(id, action) {
+      try {
+        await api('POST', `/api/submissions/${id}/${action}`);
+        showToast('Action successful');
+        loadReview();
+        loadOverview();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+
+    async function openMedia(subId) {
+      try {
+        const res = await api('GET', `/api/submissions/${subId}/media-url`);
+        const lb = document.getElementById('lightbox');
+        document.getElementById('lb-img').src = res.url;
+        document.getElementById('lb-info').textContent = 'Image preview';
+        lb.classList.add('active');
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); document.getElementById('lb-img').src = ''; }
+
+    async function loadGallery() {
+      try {
+        // use submissions with status approved for gallery
+        state.gallery = await api('GET', `/api/submissions?status=approved`);
+        renderGallery();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    
+    function setGalleryFilter(epill) {
+      document.querySelectorAll('#tab-gallery .pill').forEach(p => p.classList.remove('active'));
+      document.querySelector(`#tab-gallery .pill[data-gfilter="${epill}"]`).classList.add('active');
+      renderGallery(epill);
+    }
+    
+    function renderGallery(filter = 'all') {
+      const grid = document.getElementById('gallery-grid');
+      let items = state.gallery;
+      if(filter !== 'all') items = items.filter(i => i.event_tag === filter);
+      if(!items.length) { grid.innerHTML = '<div style="color:var(--text2);padding:20px;">No photos yet 📷</div>'; return; }
+      
+      grid.innerHTML = items.map(i => {
+         return `<div class="gallery-item" onclick="openMedia('${i.id}')">
+           <div style="aspect-ratio:1;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text3);">📷 Image</div>
+           <div class="gallery-attr">by ${i.sender_name}</div>
+         </div>`;
+      }).join('');
+    }
+
+    let uploadFiles = [];
+    function handleFileSelect(e) {
+      uploadFiles = Array.from(e.target.files);
+      const list = document.getElementById('up-list');
+      list.innerHTML = uploadFiles.map((f, i) => `
+        <div class="file-item">
+          <span>${f.name} (${(f.size/1024/1024).toFixed(2)} MB)</span>
+          <span class="file-remove" onclick="removeUpload(${i})">&times;</span>
+        </div>
+      `).join('');
+    }
+    function removeUpload(idx) {
+      uploadFiles.splice(idx, 1);
+      handleFileSelect({ target: { files: uploadFiles }});
+    }
+    async function uploadManual() {
+      const name = document.getElementById('up-name').value;
+      const event = document.getElementById('up-event').value;
+      if(!name || uploadFiles.length === 0) return showToast('Name and files required', 'error');
+      
+      let successCount = 0;
+      for(let f of uploadFiles) {
+        const formData = new FormData();
+        formData.append('file', f);
+        formData.append('senderName', name);
+        formData.append('eventTag', event);
+        
+        try {
+          const res = await fetch(API_BASE + '/api/upload-manual', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + state.token },
+            body: formData
+          });
+          if(!res.ok) throw new Error('Upload failed');
+          successCount++;
+        } catch(e) { showToast(e.message, 'error'); }
+      }
+      showToast(`${successCount} photos added to gallery`);
+      uploadFiles = [];
+      document.getElementById('up-list').innerHTML = '';
+      document.getElementById('up-name').value = '';
+    }
+
+    async function loadSettings() {
+      try {
+        const data = await api('GET', '/api/workspace');
+        state.config = data.config || {};
+        renderSettings();
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+    
+    function renderSettings() {
+      const c = state.config;
+      const form = document.getElementById('settingsForm');
+      form.innerHTML = `
+        <div class="settings-section">
+          <h2 class="settings-section-title">Couple & Family</h2>
+          <div class="grid-2">
+            <div class="form-group"><label class="form-label">Bride's Name (English)</label><input class="form-input" id="c-bn" value="${c.brideName||''}"></div>
+            <div class="form-group"><label class="form-label">Bride's Name (Hindi)</label><input class="form-input" id="c-bnh" value="${c.brideNameHindi||''}"></div>
+            <div class="form-group"><label class="form-label">Groom's Name (English)</label><input class="form-input" id="c-gn" value="${c.groomName||''}"></div>
+            <div class="form-group"><label class="form-label">Groom's Name (Hindi)</label><input class="form-input" id="c-gnh" value="${c.groomNameHindi||''}"></div>
+            <div class="form-group"><label class="form-label">Bride's Father</label><input class="form-input" id="c-bf" value="${c.brideFather||''}"></div>
+            <div class="form-group"><label class="form-label">Bride's Mother</label><input class="form-input" id="c-bm" value="${c.brideMother||''}"></div>
+            <div class="form-group"><label class="form-label">Groom's Father</label><input class="form-input" id="c-gf" value="${c.groomFather||''}"></div>
+            <div class="form-group"><label class="form-label">Groom's Mother</label><input class="form-input" id="c-gm" value="${c.groomMother||''}"></div>
+            <div class="form-group" style="grid-column: span 2;"><label class="form-label">WhatsApp Number</label><input class="form-input" id="c-wa" value="${c.whatsappNumber||''}"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    async function saveSettings() {
+      const config = {
+        ...state.config,
+        brideName: document.getElementById('c-bn').value,
+        brideNameHindi: document.getElementById('c-bnh').value,
+        groomName: document.getElementById('c-gn').value,
+        groomNameHindi: document.getElementById('c-gnh').value,
+        brideFather: document.getElementById('c-bf').value,
+        brideMother: document.getElementById('c-bm').value,
+        groomFather: document.getElementById('c-gf').value,
+        groomMother: document.getElementById('c-gm').value,
+        whatsappNumber: document.getElementById('c-wa').value
+      };
+      try {
+        await api('PUT', '/api/workspace', { config });
+        state.config = config;
+        showToast('Settings saved');
+      } catch(e) { showToast('Failed to save', 'error'); }
+    }
+  </script>
+</body>
+</html>
