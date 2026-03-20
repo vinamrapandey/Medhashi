@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
     :root {
       --bg: #0F0F0F;
@@ -343,19 +344,19 @@
       grid-column: 1 !important;
     }
 
-    .guest-table-wrap {
+    .table-wrapper {
       overflow-x: auto;
     }
 
-    .guest-table {
+    table {
       min-width: 560px;
     }
 
-    .review-grid {
+    #review-grid {
       grid-template-columns: 1fr !important;
     }
 
-    .gallery-grid {
+    #gallery-grid {
       grid-template-columns: 1fr 1fr !important;
     }
 
@@ -369,6 +370,13 @@
 
     .page-title {
       font-size: 22px !important;
+    }
+
+    .settings-bottom {
+      left: 0;
+      bottom: 60px; /* immediately above bottom-nav */
+      padding: 16px;
+      border-top: 1px solid var(--border);
     }
 
     .header-row {
@@ -505,6 +513,10 @@
     .event-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
     .event-header { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
     .settings-bottom { position: fixed; bottom: 0; left: 260px; right: 0; padding: 20px 32px; background: var(--bg); border-top: 1px solid var(--border); z-index: 10; }
+    .settings-grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin-bottom: 16px; }
+    .field-label { display: block; font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .field-input { width: 100%; background: var(--surface3); border: 1px solid var(--border); padding: 10px 14px; border-radius: var(--radius); color: var(--text1); transition: border-color 0.2s; }
+    .field-input:focus { outline: none; border-color: var(--gold); }
 
     /* Modals & Toasts */
     .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
@@ -604,15 +616,15 @@
           <div id="sidebar-ws" class="sidebar-ws-name"></div>
         </div>
         <div class="nav-list">
-          <div class="nav-item active" onclick="switchTab('overview')" data-tab="overview">📊 Overview</div>
-          <div class="nav-item" onclick="switchTab('guests')" data-tab="guests">👥 Guests</div>
-          <div class="nav-item" onclick="switchTab('review')" data-tab="review">📸 Review <span id="badge-pending" class="badge hidden">0</span></div>
-          <div class="nav-item" onclick="switchTab('gallery')" data-tab="gallery">🖼️ Gallery</div>
-          <div class="nav-item" onclick="switchTab('upload')" data-tab="upload">⬆️ Upload</div>
-          <div class="nav-item" onclick="switchTab('settings')" data-tab="settings">⚙️ Settings</div>
+          <div class="nav-item active" onclick="switchTab('overview')" data-tab="overview"><i class="ph ph-chart-bar" style="font-size: 18px;"></i> Overview</div>
+          <div class="nav-item" onclick="switchTab('guests')" data-tab="guests"><i class="ph ph-users" style="font-size: 18px;"></i> Guests</div>
+          <div class="nav-item" onclick="switchTab('review')" data-tab="review"><i class="ph ph-camera" style="font-size: 18px;"></i> Review <span id="badge-pending" class="badge hidden">0</span></div>
+          <div class="nav-item" onclick="switchTab('gallery')" data-tab="gallery"><i class="ph ph-image" style="font-size: 18px;"></i> Gallery</div>
+          <div class="nav-item" onclick="switchTab('upload')" data-tab="upload"><i class="ph ph-upload-simple" style="font-size: 18px;"></i> Upload</div>
+          <div class="nav-item" onclick="switchTab('settings')" data-tab="settings"><i class="ph ph-gear" style="font-size: 18px;"></i> Settings</div>
         </div>
         <div class="sidebar-bottom">
-          <div class="nav-item sign-out" onclick="handleSignOut()">🚪 Sign Out</div>
+          <div class="nav-item sign-out" onclick="handleSignOut()"><i class="ph ph-sign-out" style="font-size: 18px;"></i> Sign Out</div>
         </div>
       </aside>
 
@@ -715,7 +727,7 @@
               </div>
               
               <div class="drop-zone" id="up-drop">
-                <div class="drop-icon">⬆️</div>
+                <div class="drop-icon"><i class="ph ph-upload-simple"></i></div>
                 <div class="drop-text">Click to select or drag files here</div>
                 <div class="drop-sub">Images and videos accepted</div>
                 <input type="file" id="up-file" multiple accept="image/*,video/*" onchange="handleFileSelect(event)">
@@ -755,29 +767,29 @@
       <nav class="bottom-nav" id="bottom-nav">
         <button class="bottom-nav-item active" data-tab="overview"
           onclick="switchTab('overview')">
-          <span class="bottom-nav-icon">📊</span>
+          <i class="ph ph-chart-bar bottom-nav-icon"></i>
           <span class="bottom-nav-label">Overview</span>
         </button>
         <button class="bottom-nav-item" data-tab="guests"
           onclick="switchTab('guests')">
-          <span class="bottom-nav-icon">👥</span>
+          <i class="ph ph-users bottom-nav-icon"></i>
           <span class="bottom-nav-label">Guests</span>
         </button>
         <button class="bottom-nav-item" data-tab="review"
           onclick="switchTab('review')">
-          <span class="bottom-nav-icon">📸</span>
+          <i class="ph ph-camera bottom-nav-icon"></i>
           <span class="bottom-nav-label">Review</span>
           <span class="bottom-nav-badge" id="bottom-pending-badge"
             style="display:none"></span>
         </button>
         <button class="bottom-nav-item" data-tab="gallery"
           onclick="switchTab('gallery')">
-          <span class="bottom-nav-icon">🖼️</span>
+          <i class="ph ph-image bottom-nav-icon"></i>
           <span class="bottom-nav-label">Gallery</span>
         </button>
         <button class="bottom-nav-item" data-tab="settings"
           onclick="switchTab('settings')">
-          <span class="bottom-nav-icon">⚙️</span>
+          <i class="ph ph-gear bottom-nav-icon"></i>
           <span class="bottom-nav-label">Settings</span>
         </button>
       </nav>
@@ -1021,8 +1033,8 @@
           <td>${eBadge}${hBadge}${wBadge}</td>
           <td>${upDot}</td>
           <td>
-            <button onclick="editGuest('${g.id}')">✏️</button>
-            <button onclick="deleteGuest('${g.id}')">🗑️</button>
+            <button onclick="editGuest('${g.id}')" style="font-size:16px;color:var(--text1);"><i class="ph ph-pencil-simple"></i></button>
+            <button onclick="deleteGuest('${g.id}')" style="font-size:16px;color:var(--red);margin-left:8px;"><i class="ph ph-trash"></i></button>
           </td>
         </tr>`;
       }).join('');
@@ -1139,7 +1151,7 @@
         
         return `<div class="review-card">
           <div class="review-img" style="display:flex;align-items:center;justify-content:center;color:var(--text3);cursor:pointer;" onclick="openMedia('${s.id}')">
-            📷 Click to load image
+            <i class="ph ph-image" style="font-size:24px;margin-right:8px;"></i> Click to load image
           </div>
           <div class="review-info">
             <div class="review-row1"><span>${s.sender_name}</span> <span class="event-badge active">${s.event_tag}</span></div>
@@ -1194,11 +1206,11 @@
       const grid = document.getElementById('gallery-grid');
       let items = state.gallery;
       if(filter !== 'all') items = items.filter(i => i.event_tag === filter);
-      if(!items.length) { grid.innerHTML = '<div style="color:var(--text2);padding:20px;">No photos yet 📷</div>'; return; }
+      if(!items.length) { grid.innerHTML = '<div style="color:var(--text2);padding:20px;"><i class="ph ph-image" style="margin-right:8px;"></i>No photos yet</div>'; return; }
       
       grid.innerHTML = items.map(i => {
          return `<div class="gallery-item" onclick="openMedia('${i.id}')">
-           <div style="aspect-ratio:1;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text3);">📷 Image</div>
+           <div style="aspect-ratio:1;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text3);"><i class="ph ph-image" style="font-size:24px;margin-right:8px;"></i> Image</div>
            <div class="gallery-attr">by ${i.sender_name}</div>
          </div>`;
       }).join('');
@@ -1285,7 +1297,7 @@
         card.dataset.idx = idx;
         card.innerHTML = `
           <div class="event-editor-header">
-            <span class="event-icon">${event.icon || '📅'}</span>
+            <span class="event-icon">${event.icon && event.icon.startsWith('ph-') ? `<i class="ph ${event.icon}"></i>` : (event.icon || '<i class="ph ph-calendar-blank"></i>')}</span>
             <span class="event-editor-title">${event.title}</span>
           </div>
           <div class="settings-grid">
@@ -1305,9 +1317,9 @@
                 value="${event.date || ''}">
             </div>
             <div class="settings-field">
-              <label class="field-label">ICON (EMOJI)</label>
+              <label class="field-label">ICON (CLASS)</label>
               <input class="field-input" data-field="icon"
-                value="${event.icon || ''}" placeholder="💍" maxlength="4">
+                value="${event.icon || ''}" placeholder="ph-heart" maxlength="30">
             </div>
             <div class="settings-field">
               <label class="field-label">TIME (ENGLISH)</label>
