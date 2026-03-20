@@ -916,6 +916,83 @@
           </div>
         </div>
       `;
+
+      // Render events editor
+      const eventsEditor = document.getElementById('events-editor');
+      eventsEditor.innerHTML = '';
+
+      (state.config.events || []).forEach((event, idx) => {
+        const card = document.createElement('div');
+        card.className = 'event-editor-card';
+        card.dataset.idx = idx;
+        card.innerHTML = `
+          <div class="event-editor-header">
+            <span class="event-icon">${event.icon || '📅'}</span>
+            <span class="event-editor-title">${event.title}</span>
+          </div>
+          <div class="settings-grid">
+            <div class="settings-field">
+              <label class="field-label">TITLE (ENGLISH)</label>
+              <input class="field-input" data-field="title"
+                value="${event.title || ''}" placeholder="e.g. Engagement">
+            </div>
+            <div class="settings-field">
+              <label class="field-label">TITLE (HINDI)</label>
+              <input class="field-input" data-field="titleHindi"
+                value="${event.titleHindi || ''}" placeholder="e.g. सगाई">
+            </div>
+            <div class="settings-field">
+              <label class="field-label">DATE</label>
+              <input class="field-input" type="date" data-field="date"
+                value="${event.date || ''}">
+            </div>
+            <div class="settings-field">
+              <label class="field-label">ICON (EMOJI)</label>
+              <input class="field-input" data-field="icon"
+                value="${event.icon || ''}" placeholder="💍" maxlength="4">
+            </div>
+            <div class="settings-field">
+              <label class="field-label">TIME (ENGLISH)</label>
+              <input class="field-input" data-field="time"
+                value="${event.time || ''}" placeholder="e.g. 7 PM Onwards">
+            </div>
+            <div class="settings-field">
+              <label class="field-label">TIME (HINDI)</label>
+              <input class="field-input" data-field="timeHindi"
+                value="${event.timeHindi || ''}" placeholder="e.g. शाम 7 बजे से">
+            </div>
+            <div class="settings-field">
+              <label class="field-label">VENUE NAME (ENGLISH)</label>
+              <input class="field-input" data-field="venueName"
+                value="${event.venueName || ''}" placeholder="Venue name">
+            </div>
+            <div class="settings-field">
+              <label class="field-label">VENUE NAME (HINDI)</label>
+              <input class="field-input" data-field="venueNameHindi"
+                value="${event.venueNameHindi || ''}" placeholder="स्थान का नाम">
+            </div>
+            <div class="settings-field full-width">
+              <label class="field-label">VENUE ADDRESS (ENGLISH)</label>
+              <input class="field-input" data-field="venueAddress"
+                value="${event.venueAddress || ''}"
+                placeholder="Full address">
+            </div>
+            <div class="settings-field full-width">
+              <label class="field-label">VENUE ADDRESS (HINDI)</label>
+              <input class="field-input" data-field="venueAddressHindi"
+                value="${event.venueAddressHindi || ''}"
+                placeholder="पूरा पता">
+            </div>
+            <div class="settings-field full-width">
+              <label class="field-label">GOOGLE MAPS URL</label>
+              <input class="field-input" data-field="mapUrl"
+                value="${event.mapUrl || ''}"
+                placeholder="https://maps.app.goo.gl/...">
+            </div>
+          </div>
+        `;
+        eventsEditor.appendChild(card);
+      });
     }
     
     async function saveSettings() {
