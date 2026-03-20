@@ -213,6 +213,9 @@
     animation: fadeIn 0.3s ease;
   }
 
+  .sign-out { color: var(--red) !important; width: 100%; justify-content: flex-start; }
+  .sign-out:hover { background: var(--red-dim) !important; color: var(--red) !important; }
+
   /* BOTTOM NAV — mobile only, hidden on desktop */
   .bottom-nav {
     display: none;
@@ -611,11 +614,11 @@
       </div>
 
       <aside class="sidebar">
-        <div class="sidebar-top">
-          <div class="sidebar-logo serif">M ✦</div>
-          <div id="sidebar-ws" class="sidebar-ws-name"></div>
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-mono">M ✦</div>
+          <div id="sidebar-ws" class="sidebar-brand-name"></div>
         </div>
-        <div class="nav-list">
+        <div class="sidebar-nav">
           <div class="nav-item active" onclick="switchTab('overview')" data-tab="overview"><i class="ph ph-chart-bar" style="font-size: 18px;"></i> Overview</div>
           <div class="nav-item" onclick="switchTab('guests')" data-tab="guests"><i class="ph ph-users" style="font-size: 18px;"></i> Guests</div>
           <div class="nav-item" onclick="switchTab('review')" data-tab="review"><i class="ph ph-camera" style="font-size: 18px;"></i> Review <span id="badge-pending" class="badge hidden">0</span></div>
@@ -623,7 +626,7 @@
           <div class="nav-item" onclick="switchTab('upload')" data-tab="upload"><i class="ph ph-upload-simple" style="font-size: 18px;"></i> Upload</div>
           <div class="nav-item" onclick="switchTab('settings')" data-tab="settings"><i class="ph ph-gear" style="font-size: 18px;"></i> Settings</div>
         </div>
-        <div class="sidebar-bottom">
+        <div class="sidebar-footer">
           <div class="nav-item sign-out" onclick="handleSignOut()"><i class="ph ph-sign-out" style="font-size: 18px;"></i> Sign Out</div>
         </div>
       </aside>
