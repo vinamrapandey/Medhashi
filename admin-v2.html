@@ -1008,6 +1008,21 @@
         groomMother: document.getElementById('c-gm').value,
         whatsappNumber: document.getElementById('c-wa').value
       };
+
+      // Collect updated event values from editor cards
+      const eventCards = document.querySelectorAll('.event-editor-card');
+      const updatedEvents = Array.from(eventCards).map((card, idx) => {
+        const original = state.config.events[idx] || {};
+        const inputs = card.querySelectorAll('[data-field]');
+        const updated = { ...original };
+        inputs.forEach(input => {
+          updated[input.dataset.field] = input.value.trim();
+        });
+        return updated;
+      });
+      // Merge into config before saving
+      config.events = updatedEvents;
+
       try {
         await api('PUT', '/api/workspace', { config });
         state.config = config;
