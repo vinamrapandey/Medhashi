@@ -443,6 +443,34 @@
     color: var(--deep-burgundy);
 }
 
+/* Sign-out button */
+.guest-signout-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(107, 39, 55, 0.15);
+    background: rgba(250, 247, 242, 0.9);
+    backdrop-filter: blur(8px);
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.guest-signout-btn:hover {
+    background: var(--white);
+    color: var(--deep-burgundy);
+    border-color: var(--deep-burgundy);
+    box-shadow: 0 4px 12px rgba(107, 39, 55, 0.15);
+}
+
 /* ================ SCREEN 6 — EVENT DETAIL ================ */
 .screen-event-detail {
     padding: 0;

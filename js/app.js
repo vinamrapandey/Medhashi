@@ -29,6 +29,13 @@ function hideAllScreens() {
     });
 }
 
+/* ---- Guest Sign Out ---- */
+function guestSignOut() {
+    sessionStorage.clear();
+    localStorage.removeItem('as_wedding_lang');
+    navigateTo('screen-language');
+}
+
 /* ---- Screen Navigation ---- */
 function navigateTo(screenId, options = {}) {
     const { skipLoader = false, eventKey = null } = options;
