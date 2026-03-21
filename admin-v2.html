@@ -377,6 +377,10 @@
     }
 
     .settings-bottom {
+      display: none !important;
+    }
+
+    .mobile-save-card {
       position: fixed;
       left: 0;
       right: 0;
@@ -384,11 +388,12 @@
       padding: 16px;
       border-top: 1px solid var(--border);
       background: var(--bg);
-      z-index: 90;
+      z-index: 900;
+      display: none; /* toggled by JS */
     }
 
-    .settings-bottom .btn-gold {
-      max-width: 100% !important;
+    .mobile-save-card .btn-gold {
+      width: 100% !important;
     }
 
     .header-row {
@@ -800,6 +805,11 @@
         </div>
       </main>
       
+      <!-- Mobile Save Settings Card (Sticky) -->
+      <div id="mobile-save-card" class="mobile-save-card">
+        <button class="btn-gold" onclick="saveSettings()">Save Settings</button>
+      </div>
+
       <!-- Bottom nav (mobile only) -->
       <nav class="bottom-nav" id="bottom-nav">
         <button class="bottom-nav-item active" data-tab="overview"
@@ -1010,6 +1020,9 @@
       document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
       document.getElementById('tab-' + tabName).classList.add('active');
       state.tab = tabName;
+
+      const msc = document.getElementById('mobile-save-card');
+      if (msc) msc.style.display = (tabName === 'settings') ? 'block' : 'none';
 
       if (tabName === 'overview') loadOverview();
       else if (tabName === 'guests') loadGuests();
