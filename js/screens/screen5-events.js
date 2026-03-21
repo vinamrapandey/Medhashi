@@ -9,13 +9,12 @@ function renderEventsScreen() {
     const isHindi = getLang() === 'hi';
     const events = STRINGS.events;
 
-    const guestEventsStr = sessionStorage.getItem('guest_events') || '[]';
-    const guestEvents = JSON.parse(guestEventsStr);
-    const hasEng = guestEvents.includes('engagement');
-    const hasHal = guestEvents.includes('haldi');
-    const hasWed = guestEvents.includes('wedding');
+    // Show all events to every logged-in guest
+    const hasEng = true;
+    const hasHal = true;
+    const hasWed = true;
 
-    let count = (hasEng?1:0) + (hasHal?1:0) + (hasWed?1:0);
+    let count = 3;
 
     let layoutClass = '';
     let centerStyles = '';
