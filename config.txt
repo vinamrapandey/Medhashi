@@ -1,0 +1,35 @@
+
+ Γ¢à∩╕Å wrangler 4.73.0 (update available 4.76.0)
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+Resource location: remote 
+
+≡ƒîÇ Executing on remote database medhashi-db (4e4e9d6e-827d-4ff2-83f1-ec786c44ed01):
+≡ƒîÇ To execute on your local development database, remove the --remote flag from your wrangler command.
+≡ƒÜú Executed 1 command in 0.16ms
+[
+  {
+    "results": [
+      {
+        "config": "{ \\\"brideName\\\": \\\"Apoorva Pandey\\\", \\\"groomName\\\": \\\"Saumya Ranjan Dwivedy\\\", \\\"brideNameHindi\\\": \\\"αñàαñ¬αÑéαñ░αÑìαñ╡αñ╛ αñ¬αñ╛αñúαÑìαñíαÑçαñ»\\\", \\\"groomNameHindi\\\": \\\"αñ╕αÑîαñ«αÑìαñ» αñ░αñéαñ£αñ¿ αñªαÑìαñ╡αñ┐αñ╡αÑçαñªαÑÇ\\\", \\\"brideFather\\\": \\\"Shri Vinod Kumar Pandey\\\", \\\"brideMother\\\": \\\"Smt. Madhu Pandey\\\", \\\"groomFather\\\": \\\"Shri Rajarshi Dwivedy\\\", \\\"groomMother\\\": \\\"Smt. Aprajita Dwivedy\\\", \\\"brideFatherHindi\\\": \\\"αñ╢αÑìαñ░αÑÇ αñ╡αñ┐αñ¿αÑïαñª αñòαÑüαñ«αñ╛αñ░ αñ¬αñ╛αñúαÑìαñíαÑçαñ»\\\", \\\"brideMotherHindi\\\": \\\"αñ╢αÑìαñ░αÑÇαñ«αññαÑÇ αñ«αñºαÑü αñ¬αñ╛αñúαÑìαñíαÑçαñ»\\\", \\\"groomFatherHindi\\\": \\\"αñ╢αÑìαñ░αÑÇ αñ░αñ╛αñ£αñ░αÑìαñ╖αñ┐ αñªαÑìαñ╡αñ┐αñ╡αÑçαñªαÑÇ\\\", \\\"groomMotherHindi\\\": \\\"αñ╢αÑìαñ░αÑÇαñ«αññαÑÇ αñàαñ¬αñ░αñ╛αñ£αñ┐αññαñ╛ αñªαÑìαñ╡αñ┐αñ╡αÑçαñªαÑÇ\\\", \\\"whatsappNumber\\\": \\\"918917028655\\\", \\\"events\\\": [ { \\\"key\\\": \\\"engagement\\\", \\\"title\\\": \\\"Engagement\\\", \\\"titleHindi\\\": \\\"αñ╕αñùαñ╛αñê\\\", \\\"date\\\": \\\"2026-04-23\\\", \\\"time\\\": \\\"Time TBD\\\", \\\"timeHindi\\\": \\\"αñ╕αñ«αñ» αñ£αñ▓αÑìαñª αñ╕αÑéαñÜαñ┐αññ αñòαñ┐αñ»αñ╛ αñ£αñ╛αñÅαñùαñ╛\\\", \\\"icon\\\": \\\"≡ƒÆì\\\", \\\"venueName\\\": \\\"Lucknow Golf Club\\\", \\\"venueNameHindi\\\": \\\"αñ▓αñûαñ¿αñè αñùαÑïαñ▓αÑìαñ½ αñòαÑìαñ▓αñ¼\\\", \\\"venueAddress\\\": \\\"1, Kalidas Marg, Gulistan Colony, Lucknow, UP 226001\\\", \\\"venueAddressHindi\\\": \\\"1, αñòαñ╛αñ▓αñ┐αñªαñ╛αñ╕ αñ«αñ╛αñ░αÑìαñù, αñùαÑüαñ▓αñ┐αñ╕αÑìαññαñ╛αñ¿ αñòαÑëαñ▓αÑïαñ¿αÑÇ, αñ▓αñûαñ¿αñè\\\", \\\"mapUrl\\\": \\\"https://maps.app.goo.gl/oegG1c93RpHvdR1M8\\\" }, { \\\"key\\\": \\\"haldi\\\", \\\"title\\\": \\\"Haldi, Mehandi & Sangeet\\\", \\\"titleHindi\\\": \\\"αñ╣αñ▓αÑìαñªαÑÇ, αñ«αÑçαñ╣αñéαñªαÑÇ αñöαñ░ αñ╕αñéαñùαÑÇαññ\\\", \\\"date\\\": \\\"2026-04-25\\\", \\\"time\\\": \\\"5 PM Onwards\\\", \\\"timeHindi\\\": \\\"αñ╢αñ╛αñ« 5 αñ¼αñ£αÑç αñ╕αÑç\\\", \\\"icon\\\": \\\"≡ƒî║\\\", \\\"venueName\\\": \\\"Club Dancing Donalds\\\", \\\"venueNameHindi\\\": \\\"αñòαÑìαñ▓αñ¼ αñíαñ╛αñéαñ╕αñ┐αñéαñù αñíαÑïαñ¿αñ╛αñ▓αÑìαñíαÑìαñ╕\\\", \\\"venueAddress\\\": \\\"Antas Mall Rooftop, Gomti Nagar, Lucknow\\\", \\\"venueAddressHindi\\\": \\\"αñàαñéαññαñ╕ αñ«αÑëαñ▓ αñ░αÑéαñ½αñƒαÑëαñ¬, αñùαÑïαñ«αññαÑÇ αñ¿αñùαñ░, αñ▓αñûαñ¿αñè\\\", \\\"mapUrl\\\": \\\"https://maps.app.goo.gl/mFm9cYrvFJzzCiAGA\\\" }, { \\\"key\\\": \\\"wedding\\\", \\\"title\\\": \\\"Wedding\\\", \\\"titleHindi\\\": \\\"αñ╡αñ┐αñ╡αñ╛αñ╣\\\", \\\"date\\\": \\\"2026-04-27\\\", \\\"time\\\": \\\"7 PM Onwards\\\", \\\"timeHindi\\\": \\\"αñ╢αñ╛αñ« 7 αñ¼αñ£αÑç αñ╕αÑç\\\", \\\"icon\\\": \\\"≡ƒòë∩╕Å\\\", \\\"venueName\\\": \\\"Chinmay Resort\\\", \\\"venueNameHindi\\\": \\\"αñÜαñ┐αñ¿αÑìαñ«αñ» αñ░αñ┐αñ╕αÑëαñ░αÑìαñƒ\\\", \\\"venueAddress\\\": \\\"331, Sultanpur Rd, Ahmamau, UP 226002\\\", \\\"venueAddressHindi\\\": \\\"331, αñ╕αÑüαñ▓αÑìαññαñ╛αñ¿αñ¬αÑüαñ░ αñ░αÑïαñí, αñàαñ╣αñ«αñ╛αñ«αÑî, UP 226002\\\", \\\"mapUrl\\\": \\\"https://maps.app.goo.gl/JPDFWe1jdB3LEn6i9\\\" } ] }"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "KIX",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.158
+      },
+      "duration": 0.158,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 69632,
+      "rows_read": 1,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
