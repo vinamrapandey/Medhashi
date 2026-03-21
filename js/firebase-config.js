@@ -62,14 +62,8 @@ async function lookupGuest(phone) {
       }
     }
   } catch {}
-  // Wedding fallback — allow any guest
-  return {
-    name: 'Guest',
-    nameHindi: 'अतिथि',
-    phone,
-    events: ['engagement', 'haldi', 'wedding'],
-    canUpload: true
-  }
+  // Not found in admin guest list — reject
+  return null
 }
 
 function logGuestAccess(phone, name) {
