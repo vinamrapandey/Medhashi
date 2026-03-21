@@ -152,6 +152,11 @@ function initApp() {
     // Initialize Firebase
     initFirebase();
 
+    // Sync live config from API (non-blocking)
+    if (typeof syncWorkspaceConfig === 'function') {
+      syncWorkspaceConfig()
+    }
+
     // Register service worker
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(() => {

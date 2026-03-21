@@ -356,3 +356,77 @@ function formatDateHindi(dateStr) {
   const hindiDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
   return dateStr.replace(/\d/g, d => hindiDigits[d]);
 }
+
+/* ---- Sync live config from API (non-blocking) ---- */
+async function syncWorkspaceConfig() {
+  try {
+    const res = await fetch(
+      'https://medhashi-api.medhashi.workers.dev/api/workspace/public',
+      { cache: 'no-store' }
+    )
+    if (!res.ok) return
+    const { config } = await res.json()
+    if (!config) return
+
+    // Overwrite name strings if present
+    if (config.brideName)
+      STRINGS.brideName = { en: config.brideName, hi: config.brideNameHindi || config.brideName }
+    if (config.groomName)
+      STRINGS.groomName = { en: config.groomName, hi: config.groomNameHindi || config.groomName }
+    if (config.brideFather)
+      STRINGS.brideFather = { en: config.brideFather, hi: config.brideFatherHindi || config.brideFather }
+    if (config.brideMother)
+      STRINGS.brideMother = { en: config.brideMother, hi: config.brideMotherHindi || config.brideMother }
+    if (config.groomFather)
+      STRINGS.groomFather = { en: config.groomFather, hi: config.groomFatherHindi || config.groomFather }
+    if (config.groomMother)
+      STRINGS.groomMother = { en: config.groomMother, hi: config.groomMotherHindi || config.groomMother }
+
+    // Overwrite couple name composites
+    if (config.brideName && config.groomName) {
+      const bn = config.brideName.split(' ')[0]
+      const gn = config.groomName.split(' ')[0]
+      const bnh = (config.brideNameHindi || config.brideName).split(' ')[0]
+      const gnh = (config.groomNameHindi || config.groomName).split(' ')[0]
+      STRINGS.heroCoupleName = { en: `${bn} & ${gn}`, hi: `${bnh} & ${gnh}` }
+      STRINGS.invCardCouple = { en: `${bn} & ${gn}`, hi: `${bnh} & ${gnh}` }
+      STRINGS.messageSignature = { en: `— ${bn} & ${gn} 🌸`, hi: `— ${bnh} & ${gnh} 🌸` }
+      STRINGS.storyWelcomeBody = {
+        en: `With hearts full of joy, ${bn} & ${gn} request the honour of your presence as they begin their forever.`,
+        hi: `हर्षपूर्ण हृदय के साथ, ${bnh} और ${gnh} आपकी उपस्थिति का सम्मानपूर्वक अनुरोध करते हैं।`
+      }
+    }
+
+    // Overwrite event data if present
+    if (config.events && Array.isArray(config.events)) {
+      config.events.forEach(ev => {
+        if (!ev.key || !STRINGS.events[ev.key]) return
+        const target = STRINGS.events[ev.key]
+        if (ev.title) target.title = { en: ev.title, hi: ev.titleHindi || ev.title }
+        if (ev.date) {
+          target.date = ev.date
+          target.dateFormatted = {
+            en: new Date(ev.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+            hi: new Date(ev.date).toLocaleDateString('hi-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+          }
+        }
+        if (ev.time) target.time = { en: ev.time, hi: ev.timeHindi || ev.time }
+        if (ev.icon) target.icon = ev.icon
+        if (ev.venueName && target.venue) {
+          target.venue.name = { en: ev.venueName, hi: ev.venueNameHindi || ev.venueName }
+          target.venue.address = { en: ev.venueAddress || '', hi: ev.venueAddressHindi || '' }
+          target.venue.mapUrl = ev.mapUrl || target.venue.mapUrl
+        }
+      })
+    }
+
+    // Update WhatsApp number if present
+    if (config.whatsappNumber) {
+      const num = config.whatsappNumber.replace(/\D/g, '')
+      if (typeof window !== 'undefined') window.WHATSAPP_NUMBER = num
+    }
+
+  } catch {
+    // Silent fail — defaults remain
+  }
+}

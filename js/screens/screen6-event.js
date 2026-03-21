@@ -3,7 +3,7 @@
    Dynamic for engagement, haldi, wedding
    ============================================ */
 
-const WHATSAPP_NUMBER = '918917028655';
+const WHATSAPP_NUMBER = window.WHATSAPP_NUMBER || '918917028655';
 
 const EVENT_WA_NAMES = {
   engagement: { en: 'the Engagement', hi: 'सगाई' },
