@@ -586,6 +586,31 @@
     .full-width {
       grid-column: 1 / -1;
     }
+
+    /* Guest Detail Popup (mobile) */
+    .guest-detail-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 2000; display: none; align-items: flex-end; justify-content: center;
+    }
+    .guest-detail-overlay.active { display: flex; }
+    .guest-detail-sheet {
+      background: var(--surface1); border-radius: 16px 16px 0 0;
+      width: 100%; max-width: 480px; padding: 24px 20px 32px;
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .gd-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 18px; }
+    .gd-name { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: var(--text1); margin-bottom: 4px; }
+    .gd-phone { font-size: 14px; color: var(--text2); margin-bottom: 16px; }
+    .gd-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); }
+    .gd-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
+    .gd-value { font-size: 14px; color: var(--text1); display: flex; gap: 6px; align-items: center; }
+    .gd-upload-on { color: #22c55e; font-weight: 500; }
+    .gd-upload-off { color: var(--text2); font-weight: 500; }
+    .gd-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .gd-actions button { flex: 1; padding: 12px; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; }
+    .gd-btn-edit { background: var(--gold); color: #111; border: none; }
+    .gd-btn-delete { background: transparent; border: 1px solid var(--red); color: var(--red); }
   </style>
 </head>
 <body>
@@ -855,6 +880,27 @@
     <div id="lb-info" class="lightbox-info"></div>
   </div>
 
+  <!-- Guest Detail Popup -->
+  <div class="guest-detail-overlay" id="guestDetailOverlay" onclick="closeGuestDetail()">
+    <div class="guest-detail-sheet" onclick="event.stopPropagation()">
+      <div class="gd-handle"></div>
+      <div class="gd-name" id="gd-name"></div>
+      <div class="gd-phone" id="gd-phone"></div>
+      <div class="gd-row">
+        <span class="gd-label">Events Invited</span>
+        <span class="gd-value" id="gd-events"></span>
+      </div>
+      <div class="gd-row">
+        <span class="gd-label">Can Upload Photos</span>
+        <span class="gd-value" id="gd-upload"></span>
+      </div>
+      <div class="gd-actions">
+        <button class="gd-btn-edit" id="gd-edit-btn">Edit</button>
+        <button class="gd-btn-delete" id="gd-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
   <script>
     const API_BASE = 'https://medhashi-api.medhashi.workers.dev';
@@ -1031,17 +1077,44 @@
         const wBadge = evts.includes('wedding') ? '<span class="event-badge active">W</span>' : '<span class="event-badge">W</span>';
         const upDot = g.can_upload ? '<span class="dot green"></span>On' : '<span class="dot gray"></span>Off';
         
-        return `<tr>
+        return `<tr onclick="showGuestDetail('${g.id}')" style="cursor:pointer;">
           <td style="font-weight:500;">${g.name}</td>
           <td style="color:var(--text2);">${g.phone || '-'}</td>
           <td>${eBadge}${hBadge}${wBadge}</td>
           <td>${upDot}</td>
           <td>
-            <button onclick="editGuest('${g.id}')" style="font-size:16px;color:var(--text1);"><i class="ph ph-pencil-simple"></i></button>
-            <button onclick="deleteGuest('${g.id}')" style="font-size:16px;color:var(--red);margin-left:8px;"><i class="ph ph-trash"></i></button>
+            <button onclick="event.stopPropagation();editGuest('${g.id}')" style="font-size:16px;color:var(--text1);"><i class="ph ph-pencil-simple"></i></button>
+            <button onclick="event.stopPropagation();deleteGuest('${g.id}')" style="font-size:16px;color:var(--red);margin-left:8px;"><i class="ph ph-trash"></i></button>
           </td>
         </tr>`;
       }).join('');
+    }
+
+    function showGuestDetail(id) {
+      const g = state.guests.find(x => x.id == id);
+      if (!g) return;
+      let evts = []; try { evts = JSON.parse(g.events || '[]'); } catch(e) {}
+      
+      document.getElementById('gd-name').textContent = g.name;
+      document.getElementById('gd-phone').textContent = g.phone || 'No phone';
+      
+      const evtNames = { engagement: 'Engagement', haldi: 'Haldi', wedding: 'Wedding' };
+      document.getElementById('gd-events').innerHTML = evts.map(e => 
+        `<span class="event-badge active">${evtNames[e] || e}</span>`
+      ).join('') || '<span style="color:var(--text2)">None</span>';
+      
+      document.getElementById('gd-upload').innerHTML = g.can_upload 
+        ? '<span class="gd-upload-on">● Yes</span>' 
+        : '<span class="gd-upload-off">● No</span>';
+      
+      document.getElementById('gd-edit-btn').onclick = () => { closeGuestDetail(); editGuest(id); };
+      document.getElementById('gd-delete-btn').onclick = () => { closeGuestDetail(); deleteGuest(id); };
+      
+      document.getElementById('guestDetailOverlay').classList.add('active');
+    }
+
+    function closeGuestDetail() {
+      document.getElementById('guestDetailOverlay').classList.remove('active');
     }
 
     function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -1058,7 +1131,7 @@
     }
     
     function editGuest(id) {
-      const g = state.guests.find(x => x.id === id);
+      const g = state.guests.find(x => x.id == id);
       if(!g) return;
       document.getElementById('g-id').value = g.id;
       document.getElementById('g-name').value = g.name;
