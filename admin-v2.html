@@ -269,7 +269,7 @@
     .main-content {
       flex: 1;
       padding: 20px 16px;
-      padding-bottom: 80px; /* space for bottom nav */
+      padding-bottom: 140px; /* space for bottom nav + sticky save btn */
       overflow-y: auto;
     }
 
@@ -377,10 +377,18 @@
     }
 
     .settings-bottom {
-      position: static;
-      padding: 16px 0;
-      border-top: none;
-      background: transparent;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 60px; /* immediately above bottom-nav */
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      z-index: 90;
+    }
+
+    .settings-bottom .btn-gold {
+      max-width: 100% !important;
     }
 
     .header-row {
