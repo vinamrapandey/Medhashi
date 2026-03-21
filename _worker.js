@@ -1,0 +1,1 @@
+export default { async fetch(request, env) { const url = new URL(request.url); if (url.hostname.startsWith("manage.") && url.pathname === "/") { const adminUrl = new URL(url); adminUrl.pathname = "/admin-v2"; return env.ASSETS.fetch(new Request(adminUrl, request)); } return env.ASSETS.fetch(request); } }
