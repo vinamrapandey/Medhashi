@@ -1,222 +1,215 @@
 /* ============================================
-   AS WEDDING — Local Database (localStorage)
-   No Firebase — fully static, offline-first
+   MEDHASHI — API Database Layer
+   Connects to Cloudflare Workers API
    ============================================ */
 
-/* ---- Storage helpers ---- */
-function localGet(key) {
-    try { return JSON.parse(localStorage.getItem(key)) || []; }
-    catch (e) { return []; }
+const API_BASE = 'https://medhashi-api.medhashi.workers.dev'
+
+/* ---- Token Management ---- */
+async function getGuestToken() {
+  let token = sessionStorage.getItem('medhashi_guest_token')
+  if (token) return token
+  try {
+    const res = await fetch(API_BASE + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspaceId: 'medhashi-aands-2026',
+        pin: 'guest2026'
+      })
+    })
+    const data = await res.json()
+    token = data.token
+    sessionStorage.setItem('medhashi_guest_token', token)
+    return token
+  } catch {
+    return null
+  }
 }
 
-function localSet(key, data) {
-    try { localStorage.setItem(key, JSON.stringify(data)); }
-    catch (e) { console.error('localStorage write error:', e); }
+async function guestApi(path) {
+  const token = await getGuestToken()
+  const res = await fetch(API_BASE + path, {
+    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+  })
+  if (!res.ok) throw new Error(res.statusText)
+  return res.json()
 }
 
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-}
-
-/* ---- "Database" initialization (no-op, kept for backward compat) ---- */
-let db = true; // truthy so existing !db guards still work
-let storage = null;
+/* ---- "Database" initialization ---- */
+let db = true
+let storage = null
 
 function initFirebase() {
-    // No-op — data lives in localStorage now
-    console.log('Local database active (localStorage).');
-    return true;
+  console.log('Medhashi API active.')
+  getGuestToken().catch(() => {})
+  return true
 }
 
 /* ==================== GUESTS ==================== */
-function lookupGuest(phone) {
-    const guests = localGet('as_guests');
-    const guest = guests.find(g => g.phone === phone);
-    if (guest) return guest;
-
-    // Always allow any phone number for demo/wedding access
-    return { name: 'Guest', nameHindi: 'अतिथि', phone, events: ['engagement', 'haldi', 'wedding'], canUpload: true };
+async function lookupGuest(phone) {
+  try {
+    const data = await guestApi('/api/guests?search=' + phone)
+    const guests = data.guests || []
+    const guest = guests.find(g => g.phone === phone)
+    if (guest) {
+      return {
+        name: guest.name,
+        nameHindi: guest.name,
+        phone: guest.phone,
+        events: JSON.parse(guest.events || '[]'),
+        canUpload: guest.can_upload === 1
+      }
+    }
+  } catch {}
+  // Wedding fallback — allow any guest
+  return {
+    name: 'Guest',
+    nameHindi: 'अतिथि',
+    phone,
+    events: ['engagement', 'haldi', 'wedding'],
+    canUpload: true
+  }
 }
 
 function logGuestAccess(phone, name) {
-    const logs = localGet('as_access_logs');
-    logs.unshift({ phone, name, timestamp: new Date().toISOString(), userAgent: navigator.userAgent });
-    if (logs.length > 100) logs.length = 100; // cap
-    localSet('as_access_logs', logs);
-}
-
-/* ==================== GUEST CRUD (Admin) ==================== */
-function getAllGuests() {
-    return localGet('as_guests').sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-}
-
-function addGuestLocal(data) {
-    const guests = localGet('as_guests');
-    const guest = { id: generateId(), ...data, createdAt: new Date().toISOString() };
-    guests.push(guest);
-    localSet('as_guests', guests);
-    return guest;
-}
-
-function removeGuestLocal(id) {
-    const guests = localGet('as_guests').filter(g => g.id !== id);
-    localSet('as_guests', guests);
-}
-
-function importGuestsLocal(newGuests) {
-    const guests = localGet('as_guests');
-    for (const g of newGuests) {
-        guests.push({ id: generateId(), ...g, createdAt: new Date().toISOString() });
-    }
-    localSet('as_guests', guests);
-    return newGuests.length;
+  getGuestToken().then(token => {
+    if (!token) return
+    fetch(API_BASE + '/api/access-logs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ phone, name })
+    }).catch(() => {})
+  })
 }
 
 /* ==================== PHOTOS ==================== */
-function uploadPhoto(file, eventName, phone) {
-    // For local mode, store as data URL
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const url = reader.result;
-            const photos = localGet('as_photos');
-            photos.unshift({
-                id: generateId(),
-                event: eventName,
-                uploadedBy: sessionStorage.getItem('guest_name') || 'Unknown',
-                phone,
-                url,
-                timestamp: new Date().toISOString(),
-                approved: true,
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type,
-                source: 'direct'
-            });
-            localSet('as_photos', photos);
-            resolve(url);
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
-    });
+async function uploadPhoto(file, eventName, phone) {
+  try {
+    const token = await getGuestToken()
+    if (!token) return null
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('senderPhone', phone)
+    formData.append('senderName', sessionStorage.getItem('guest_name') || 'Guest')
+    formData.append('eventTag', eventName)
+    const res = await fetch(API_BASE + '/api/upload-guest', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData
+    })
+    const data = await res.json()
+    return data.previewUrl || null
+  } catch {
+    return null
+  }
 }
 
-function getPhotos(eventName) {
-    const photos = localGet('as_photos');
-    return photos.filter(p => p.event === eventName && p.approved);
+async function getPhotos(eventName) {
+  try {
+    const data = await guestApi('/api/gallery?event=' + eventName)
+    return (data.photos || []).map(p => ({
+      id: p.id,
+      url: p.url,
+      uploadedBy: p.uploadedBy,
+      source: p.source || 'direct',
+      event: p.event,
+      approved: true
+    }))
+  } catch {
+    return []
+  }
 }
 
-function checkUploadPermission(phone) {
-    const guests = localGet('as_guests');
-    const guest = guests.find(g => g.phone === phone);
-    return guest ? guest.canUpload !== false : true; // default allow
+async function checkUploadPermission(phone) {
+  try {
+    const data = await guestApi('/api/guests?search=' + phone)
+    const guests = data.guests || []
+    const guest = guests.find(g => g.phone === phone)
+    return guest ? guest.can_upload === 1 : true
+  } catch {
+    return true
+  }
 }
 
 function deletePhotoLocal(id) {
-    const photos = localGet('as_photos').filter(p => p.id !== id);
-    localSet('as_photos', photos);
+  return null
 }
 
 /* ==================== WHATSAPP SUBMISSIONS ==================== */
 function createWhatsAppSubmission(data) {
-    const submissions = localGet('as_wa_submissions');
-    const sub = {
-        id: generateId(),
-        senderName: data.senderName || '',
-        senderPhone: data.senderPhone || '',
-        eventTag: data.eventTag || '',
-        mediaUrls: data.mediaUrls || [],
-        receivedAt: new Date().toISOString(),
-        status: 'pending',
-        reviewedAt: null,
-        reviewedBy: null,
-        note: null
-    };
-    submissions.unshift(sub);
-    localSet('as_wa_submissions', submissions);
-    return sub.id;
+  return null
 }
 
-function getWhatsAppSubmissions(statusFilter, eventFilter) {
-    let subs = localGet('as_wa_submissions');
-    if (statusFilter && statusFilter !== 'all') subs = subs.filter(s => s.status === statusFilter);
-    if (eventFilter && eventFilter !== 'all') subs = subs.filter(s => s.eventTag === eventFilter);
-    return subs;
+function getWhatsAppSubmissions() {
+  return []
 }
 
-function updateSubmissionStatus(docId, status, reviewedBy) {
-    const subs = localGet('as_wa_submissions');
-    const idx = subs.findIndex(s => s.id === docId);
-    if (idx === -1) return false;
-    subs[idx].status = status;
-    subs[idx].reviewedAt = new Date().toISOString();
-    subs[idx].reviewedBy = reviewedBy || 'admin';
-    localSet('as_wa_submissions', subs);
-    return true;
+function updateSubmissionStatus() {
+  return false
 }
 
-function approveAndCopyToGallery(submission) {
-    updateSubmissionStatus(submission.id, 'approved', 'admin');
-    const photos = localGet('as_photos');
-    const urls = submission.mediaUrls || [];
-    for (const url of urls) {
-        photos.unshift({
-            id: generateId(),
-            event: submission.eventTag,
-            uploadedBy: submission.senderName || 'WhatsApp Guest',
-            phone: submission.senderPhone || '',
-            url,
-            source: 'whatsapp',
-            approved: true,
-            timestamp: new Date().toISOString(),
-            submissionId: submission.id,
-            fileName: '',
-            fileSize: 0,
-            fileType: 'image/jpeg'
-        });
-    }
-    localSet('as_photos', photos);
-    return true;
+function approveAndCopyToGallery() {
+  return false
 }
 
-function bulkUploadToReviewQueue(files, senderName, senderPhone, eventTag) {
-    return new Promise((resolve) => {
-        const mediaUrls = [];
-        let done = 0;
-        if (files.length === 0) { resolve(null); return; }
+function bulkUploadToReviewQueue() {
+  return null
+}
 
-        for (const file of files) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                mediaUrls.push(reader.result);
-                done++;
-                if (done === files.length) {
-                    const id = createWhatsAppSubmission({ senderName, senderPhone, eventTag, mediaUrls });
-                    resolve(id);
-                }
-            };
-            reader.onerror = () => { done++; if (done === files.length) resolve(mediaUrls.length > 0 ? 'ok' : null); };
-            reader.readAsDataURL(file);
-        }
-    });
+/* ==================== GUEST CRUD (backward compat) ==================== */
+function getAllGuests() {
+  return []
+}
+
+function addGuestLocal() {
+  return null
+}
+
+function removeGuestLocal() {
+  return null
+}
+
+function importGuestsLocal() {
+  return 0
 }
 
 /* ==================== STATS HELPERS ==================== */
-function getAccessLogs(limit) {
-    const logs = localGet('as_access_logs');
-    return logs.slice(0, limit || 5);
+function getAccessLogs() {
+  return []
 }
 
-function getStatsData() {
-    const guests = localGet('as_guests');
-    const photos = localGet('as_photos').filter(p => p.approved);
-    const subs = localGet('as_wa_submissions');
+async function getStatsData() {
+  try {
+    const data = await guestApi('/api/stats')
     return {
-        totalGuests: guests.length,
-        totalPhotos: photos.length,
-        pendingReview: subs.filter(s => s.status === 'pending').length,
-        engagementPhotos: photos.filter(p => p.event === 'engagement').length,
-        haldiPhotos: photos.filter(p => p.event === 'haldi').length,
-        weddingPhotos: photos.filter(p => p.event === 'wedding').length
-    };
+      totalGuests: data.totalGuests || 0,
+      totalPhotos: data.approvedPhotos || 0,
+      pendingReview: data.pendingReview || 0,
+      engagementPhotos: data.engagementPhotos || 0,
+      haldiPhotos: data.haldiPhotos || 0,
+      weddingPhotos: data.weddingPhotos || 0
+    }
+  } catch {
+    return {
+      totalGuests: 0, totalPhotos: 0, pendingReview: 0,
+      engagementPhotos: 0, haldiPhotos: 0, weddingPhotos: 0
+    }
+  }
+}
+
+/* ==================== LOCAL STORAGE COMPAT ==================== */
+function localGet(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || [] }
+  catch { return [] }
+}
+function localSet(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)) }
+  catch {}
+}
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
 }
