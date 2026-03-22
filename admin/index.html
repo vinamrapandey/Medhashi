@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medhashi Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+
+  <div id="app">
+    <!-- Login State -->
+    <div id="login-state">
+      <div class="login-card">
+        <div class="login-logo serif">M ✦</div>
+        <div class="login-sub">Medhashi Admin</div>
+        <input type="password" id="login-pwd" class="login-input" placeholder="Enter password" onkeydown="if(event.key==='Enter') handleLogin()">
+        <button class="login-btn" onclick="handleLogin()">Login</button>
+        <div id="login-error" class="login-error"></div>
+      </div>
+    </div>
+
+    <!-- Dashboard State (hidden by default) -->
+    <div id="dashboard-state" class="hidden app-shell">
+      <!-- Mobile topbar (hidden on desktop) -->
+      <div class="mobile-topbar">
+        <div>
+          <div class="mobile-topbar-brand">M ✦</div>
+          <div class="mobile-topbar-name" id="mobile-workspace-name">
+            Apoorva & Saumya
+          </div>
+        </div>
+      </div>
+
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-mono">M ✦</div>
+          <div id="sidebar-ws" class="sidebar-brand-name"></div>
+        </div>
+        <div class="sidebar-nav">
+          <div class="nav-item active" onclick="switchTab('overview')" data-tab="overview"><i class="ph ph-chart-bar" style="font-size: 18px;"></i> Overview</div>
+          <div class="nav-item" onclick="switchTab('guests')" data-tab="guests"><i class="ph ph-users" style="font-size: 18px;"></i> Guests</div>
+          <div class="nav-item" onclick="switchTab('review')" data-tab="review"><i class="ph ph-camera" style="font-size: 18px;"></i> Review <span id="badge-pending" class="badge hidden">0</span></div>
+          <div class="nav-item" onclick="switchTab('gallery')" data-tab="gallery"><i class="ph ph-image" style="font-size: 18px;"></i> Gallery</div>
+          <div class="nav-item" onclick="switchTab('upload')" data-tab="upload"><i class="ph ph-upload-simple" style="font-size: 18px;"></i> Upload</div>
+          <div class="nav-item" onclick="switchTab('settings')" data-tab="settings"><i class="ph ph-gear" style="font-size: 18px;"></i> Settings</div>
+          <div class="nav-item" onclick="switchTab('config')" data-tab="config"><i class="ph ph-wrench" style="font-size: 18px;"></i> Configuration</div>
+        </div>
+        <div class="sidebar-footer">
+          <div class="nav-item sign-out" onclick="handleSignOut()"><i class="ph ph-sign-out" style="font-size: 18px;"></i> Sign Out</div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div class="content-container">
+          <!-- Overview Tab -->
+          <div id="tab-overview" class="tab-panel active">
+            <h1 class="page-title">Overview</h1>
+            <div id="overview-sub" class="page-sub"></div>
+            
+            <div class="stats-grid">
+              <div class="stat-card"><div id="stat-guests" class="stat-val">-</div><div class="stat-lbl">Total Guests</div></div>
+              <div class="stat-card"><div id="stat-pending" class="stat-val">-</div><div class="stat-lbl">Pending Review</div></div>
+              <div class="stat-card"><div id="stat-approved" class="stat-val">-</div><div class="stat-lbl">Approved Photos</div></div>
+              <div class="stat-card"><div id="stat-eng" class="stat-val">-</div><div class="stat-lbl">Engagement Photos</div></div>
+              <div class="stat-card"><div id="stat-hal" class="stat-val">-</div><div class="stat-lbl">Haldi Photos</div></div>
+              <div class="stat-card"><div id="stat-wed" class="stat-val">-</div><div class="stat-lbl">Wedding Photos</div></div>
+            </div>
+          </div>
+
+          <!-- Guests Tab -->
+          <div id="tab-guests" class="tab-panel">
+            <div class="header-row">
+              <h1 class="page-title">Guests <span id="guest-count-badge" style="color:var(--text2); font-size:16px;"></span></h1>
+              <div class="btn-row">
+                <button class="btn-outline" onclick="openModal('importGuestModal')">Import CSV</button>
+                <button class="btn-gold" onclick="openAddGuest()">Add Guest</button>
+              </div>
+            </div>
+            
+            <div class="filter-bar">
+              <input type="text" id="guest-search" class="search-input" placeholder="Search name or phone..." oninput="handleGuestSearch()">
+              <button class="pill active" data-epill="all" onclick="setGuestEventFilter('all')">All</button>
+              <button class="pill" data-epill="engagement" onclick="setGuestEventFilter('engagement')">Engagement</button>
+              <button class="pill" data-epill="haldi" onclick="setGuestEventFilter('haldi')">Haldi</button>
+              <button class="pill" data-epill="wedding" onclick="setGuestEventFilter('wedding')">Wedding</button>
+            </div>
+
+            <div class="table-wrapper">
+              <table id="guests-table">
+                <thead><tr><th>Name</th><th>Phone</th><th>Events</th><th>Upload</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Review Tab -->
+          <div id="tab-review" class="tab-panel">
+            <div class="header-row">
+              <h1 class="page-title">Photo Review</h1>
+            </div>
+            <div class="filter-bar">
+              <select id="review-status-filter" class="form-input" style="width: auto;" onchange="loadReview()">
+                <option value="pending">Pending</option>
+                <option value="all">All Statuses</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <select id="review-event-filter" class="form-input" style="width: auto;" onchange="renderReview()">
+                <option value="all">All Events</option>
+                <option value="engagement">Engagement</option>
+                <option value="haldi">Haldi</option>
+                <option value="wedding">Wedding</option>
+              </select>
+            </div>
+            <div class="card-grid" id="review-grid"></div>
+          </div>
+
+          <!-- Gallery Tab -->
+          <div id="tab-gallery" class="tab-panel">
+            <div class="header-row">
+              <h1 class="page-title">Gallery</h1>
+            </div>
+            <div class="filter-bar">
+              <button class="pill active" data-gfilter="all" onclick="setGalleryFilter('all')">All</button>
+              <button class="pill" data-gfilter="engagement" onclick="setGalleryFilter('engagement')">Engagement</button>
+              <button class="pill" data-gfilter="haldi" onclick="setGalleryFilter('haldi')">Haldi</button>
+              <button class="pill" data-gfilter="wedding" onclick="setGalleryFilter('wedding')">Wedding</button>
+            </div>
+            <div class="masonry" id="gallery-grid"></div>
+          </div>
+
+          <!-- Upload Tab -->
+          <div id="tab-upload" class="tab-panel">
+            <h1 class="page-title">Upload Photos</h1>
+            <div class="page-sub">Add photos directly to the gallery on behalf of a guest</div>
+            
+            <div class="upload-card">
+              <div class="form-group">
+                <label class="form-label">Sender Name *</label>
+                <input type="text" id="up-name" class="form-input" placeholder="E.g. Admin Team">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Event *</label>
+                <select id="up-event" class="form-input">
+                  <option value="engagement">Engagement</option>
+                  <option value="haldi">Haldi & Sangeet</option>
+                  <option value="wedding">Wedding</option>
+                </select>
+              </div>
+              
+              <div class="drop-zone" id="up-drop">
+                <div class="drop-icon"><i class="ph ph-upload-simple"></i></div>
+                <div class="drop-text">Click to select or drag files here</div>
+                <div class="drop-sub">Images and videos accepted</div>
+                <input type="file" id="up-file" multiple accept="image/*,video/*" onchange="handleFileSelect(event)">
+              </div>
+              
+              <div class="file-list" id="up-list"></div>
+              
+              <button class="btn-gold" style="width:100%; margin-top:20px;" onclick="uploadManual()">Upload to Gallery</button>
+            </div>
+          </div>
+
+          <!-- Settings Tab -->
+          <div id="tab-settings" class="tab-panel">
+            <h1 class="page-title">Wedding Settings</h1>
+            <div class="page-sub">Changes here reflect immediately on the guest app</div>
+            
+            <div class="settings-form" id="settingsForm"></div>
+            
+            <div class="settings-section" style="margin-top:32px">
+              <h2 class="settings-section-title">Events</h2>
+              <p class="settings-section-sub">
+                Edit dates, times and venue details for each function.
+                Changes reflect immediately on the guest app.
+              </p>
+              <div id="events-editor"></div>
+            </div>
+            
+            <div class="settings-bottom" style="margin-bottom: 40px; margin-top: 20px;">
+              <button class="btn-gold" style="width:100%; max-width:400px;" onclick="saveSettings()">Save Settings</button>
+            </div>
+          </div>
+
+          <!-- Configuration Tab -->
+          <div id="tab-config" class="tab-panel">
+            <h1 class="page-title">Configuration</h1>
+            <div class="page-sub">Manage external integrations and system settings centrally.</div>
+            
+            <div id="config-content" style="max-width:800px; padding-bottom:80px;">
+              <!-- System Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title">System Settings</h2>
+                <div id="config-list-system"></div>
+              </div>
+              
+              <!-- WhatsApp Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title" style="display:flex;align-items:center;gap:8px;">
+                  WhatsApp Integration <span id="wa-status" class="config-status status-warn">Checking</span>
+                </h2>
+                <div id="config-list-whatsapp"></div>
+              </div>
+
+              <!-- Telegram Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title" style="display:flex;align-items:center;gap:8px;">
+                  Telegram Integration <span id="tg-status" class="config-status status-warn">Checking</span>
+                </h2>
+                <div id="config-list-telegram"></div>
+              </div>
+
+              <!-- Storage Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title">Storage & CDN</h2>
+                <div id="config-list-storage"></div>
+              </div>
+
+              <!-- Payment Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title">Payments (Razorpay)</h2>
+                <div id="config-list-payments"></div>
+              </div>
+            </div>
+            
+            <div class="settings-bottom" style="margin-bottom: 40px; margin-top: 20px;">
+              <button class="btn-gold" style="width:100%; max-width:400px;" onclick="saveConfig()">Save Configurations</button>
+            </div>
+          </div>
+
+        </div>
+      </main>
+
+
+      <!-- Bottom nav (mobile only) -->
+      <nav class="bottom-nav" id="bottom-nav">
+        <button class="bottom-nav-item active" data-tab="overview"
+          onclick="switchTab('overview')">
+          <i class="ph ph-chart-bar bottom-nav-icon"></i>
+          <span class="bottom-nav-label">Overview</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="guests"
+          onclick="switchTab('guests')">
+          <i class="ph ph-users bottom-nav-icon"></i>
+          <span class="bottom-nav-label">Guests</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="review"
+          onclick="switchTab('review')">
+          <i class="ph ph-camera bottom-nav-icon"></i>
+          <span class="bottom-nav-label">Review</span>
+          <span class="bottom-nav-badge" id="bottom-pending-badge"
+            style="display:none"></span>
+        </button>
+        <button class="bottom-nav-item" data-tab="gallery"
+          onclick="switchTab('gallery')">
+          <i class="ph ph-image bottom-nav-icon"></i>
+          <span class="bottom-nav-label">Gallery</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="settings"
+          onclick="switchTab('settings')">
+          <i class="ph ph-gear bottom-nav-icon"></i>
+          <span class="bottom-nav-label">Settings</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="config"
+          onclick="switchTab('config')">
+          <i class="ph ph-wrench bottom-nav-icon"></i>
+          <span class="bottom-nav-label">Config</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <div class="overlay" id="guestModalOverlay" onclick="closeModal(event, 'guestModalOverlay')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h2 class="serif" id="guestModalTitle" style="margin-bottom:20px;">Add Guest</h2>
+      <input type="hidden" id="g-id">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" id="g-name" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input type="number" id="g-phone" class="form-input" placeholder="10 digits">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Events</label>
+        <div style="display:flex;gap:8px;">
+          <button class="pill" id="ge-engagement" onclick="toggleEventPill(this)">Engagement</button>
+          <button class="pill" id="ge-haldi" onclick="toggleEventPill(this)">Haldi</button>
+          <button class="pill" id="ge-wedding" onclick="toggleEventPill(this)">Wedding</button>
+        </div>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:12px;">
+        <label class="form-label" style="margin:0;">Can Upload Photos</label>
+        <input type="checkbox" id="g-upload">
+      </div>
+      <div class="btn-row" style="margin-top:24px;">
+        <button class="btn-outline" style="flex:1;" onclick="document.getElementById('guestModalOverlay').classList.remove('active')">Cancel</button>
+        <button class="btn-gold" style="flex:1;" onclick="saveGuest()">Save Guest</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="importModalOverlay" onclick="closeModal(event, 'importModalOverlay')">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:600px;">
+      <h2 class="serif" style="margin-bottom:16px;">Import CSV</h2>
+      <div style="background:var(--surface2);padding:12px;border-radius:var(--radius);font-family:monospace;font-size:12px;color:var(--text2);margin-bottom:16px;">
+        Format: name, phone, events, can_upload<br>
+        Events: pipe separated (engagement|haldi|wedding)<br>
+        Example: Raj Kumar, 9876543210, engagement|wedding, true
+      </div>
+      <textarea id="import-text" class="form-input" rows="8" placeholder="Paste data here..." style="font-family:monospace;"></textarea>
+      
+      <div class="btn-row" style="margin-top:24px;">
+        <button class="btn-outline" style="flex:1;" onclick="document.getElementById('importModalOverlay').classList.remove('active')">Cancel</button>
+        <button class="btn-gold" style="flex:1;" onclick="importGuests()">Import Valid Rows</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <span class="close-btn">&times;</span>
+    <img id="lb-img" onclick="event.stopPropagation()">
+    <div id="lb-info" class="lightbox-info"></div>
+  </div>
+
+  <!-- Guest Detail Popup -->
+  <div class="guest-detail-overlay" id="guestDetailOverlay" onclick="closeGuestDetail()">
+    <div class="guest-detail-sheet" onclick="event.stopPropagation()">
+      <div class="gd-handle"></div>
+      <div class="gd-name" id="gd-name"></div>
+      <div class="gd-phone" id="gd-phone"></div>
+      <div class="gd-row">
+        <span class="gd-label">Events Invited</span>
+        <span class="gd-value" id="gd-events"></span>
+      </div>
+      <div class="gd-row">
+        <span class="gd-label">Can Upload Photos</span>
+        <span class="gd-value" id="gd-upload"></span>
+      </div>
+      <div class="gd-actions">
+        <button class="gd-btn-edit" id="gd-edit-btn">Edit</button>
+        <button class="gd-btn-delete" id="gd-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+  <script src="/admin/js/admin.js"></script>
+</body>
+</html>
