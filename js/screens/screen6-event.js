@@ -3,8 +3,6 @@
    Dynamic for engagement, haldi, wedding
    ============================================ */
 
-const WHATSAPP_NUMBER = window.WHATSAPP_NUMBER || '918917028655';
-
 const EVENT_WA_NAMES = {
   engagement: { en: 'the Engagement', hi: 'सगाई' },
   haldi: { en: 'Haldi, Mehandi & Sangeet', hi: 'हल्दी, मेहंदी और संगीत' },
@@ -113,9 +111,10 @@ function renderEventDetailScreen(eventKey) {
 }
 
 function getWhatsAppUrl(eventName, lang) {
+  const waNum = window.WHATSAPP_NUMBER || window.MEDHASHI_CONFIG?.whatsapp_number || '918917028655';
   const msgFn = STRINGS.waPrefilledMsg[lang];
   const msg = typeof msgFn === 'function' ? msgFn(eventName) : `Hi! I am sending my photos from ${eventName}. My name is: `;
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+  return `https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`;
 }
 
 function renderVenueCards(event, lang, isHindi) {

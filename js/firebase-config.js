@@ -3,25 +3,54 @@
    Connects to Cloudflare Workers API
    ============================================ */
 
-const API_BASE = 'https://medhashi-api.medhashi.workers.dev'
+const API_BASE = window.MEDHASHI_API_BASE || 'https://medhashi-api.medhashi.workers.dev';
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('ws')) sessionStorage.setItem('medhashi_ws', urlParams.get('ws'));
+if (urlParams.get('pin')) sessionStorage.setItem('medhashi_pin', urlParams.get('pin'));
+
+const WORKSPACE_ID = window.MEDHASHI_WORKSPACE_ID || sessionStorage.getItem('medhashi_ws');
+const GUEST_PIN = window.MEDHASHI_GUEST_PIN || sessionStorage.getItem('medhashi_pin');
+
+async function loadPublicConfig() {
+  if (!WORKSPACE_ID) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/config/public/${WORKSPACE_ID}`);
+    if (res.ok) {
+      const data = await res.json();
+      window.MEDHASHI_CONFIG = data.config || {};
+      if (window.MEDHASHI_CONFIG.whatsapp_number) {
+        window.WHATSAPP_NUMBER = window.MEDHASHI_CONFIG.whatsapp_number;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load public config', e);
+  }
+}
 
 /* ---- Token Management ---- */
 async function getGuestToken() {
   let token = sessionStorage.getItem('medhashi_guest_token')
   if (token) return token
+  
+  if (!WORKSPACE_ID || !GUEST_PIN) return null;
+
   try {
     const res = await fetch(API_BASE + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        workspaceId: 'medhashi-aands-2026',
-        pin: 'guest2026'
+        workspaceId: WORKSPACE_ID,
+        pin: GUEST_PIN
       })
     })
     const data = await res.json()
-    token = data.token
-    sessionStorage.setItem('medhashi_guest_token', token)
-    return token
+    if (data.token) {
+      token = data.token
+      sessionStorage.setItem('medhashi_guest_token', token)
+      return token
+    }
+    return null;
   } catch {
     return null
   }
@@ -40,8 +69,9 @@ async function guestApi(path) {
 let db = true
 let storage = null
 
-function initFirebase() {
+async function initFirebase() {
   console.log('Medhashi API active.')
+  await loadPublicConfig()
   getGuestToken().catch(() => {})
   return true
 }
