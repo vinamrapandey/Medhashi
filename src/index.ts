@@ -34,27 +34,24 @@ app.post('/auth/login', async (c) => {
   }
 
   const workspace = await c.env.DB.prepare(
-    'SELECT id, couple_names, plan, admin_pin_hash, guest_pin FROM workspaces WHERE id = ? AND active = 1'
-  ).bind(workspaceId.trim()).first<{
-    id: string
-    couple_names: string
-    plan: string
-    admin_pin_hash: string
-    guest_pin: string
-  }>()
+    'SELECT id, couple_names, plan, admin_pin_hash FROM workspaces WHERE id = ? AND active = 1'
+  ).bind(workspaceId.trim()).first<any>()
 
-  if (!workspace) {
-    return c.json({ error: 'Invalid credentials' }, 401)
+  if (!workspace) return c.json({ error: 'Invalid credentials' }, 401)
+
+  const pinTrimmed = pin.trim()
+  const isAdmin = pinTrimmed === workspace.admin_pin_hash
+  
+  // Check guest pin from configurations table
+  let isGuest = false
+  if (!isAdmin) {
+    const guestPinRow = await c.env.DB.prepare(
+      "SELECT value FROM configurations WHERE workspace_id = ? AND key = 'guest_pin'"
+    ).bind(workspace.id).first<{ value: string }>()
+    isGuest = guestPinRow?.value === pinTrimmed
   }
 
-  const trimmedPin = pin.trim()
-  let isAdmin = false
-
-  if (trimmedPin === workspace.admin_pin_hash) {
-    isAdmin = true
-  } else if (trimmedPin === workspace.guest_pin) {
-    isAdmin = false
-  } else {
+  if (!isAdmin && !isGuest) {
     return c.json({ error: 'Invalid credentials' }, 401)
   }
 
@@ -72,7 +69,8 @@ app.post('/auth/login', async (c) => {
     token,
     workspaceId: workspace.id,
     workspaceName: workspace.couple_names,
-    plan: workspace.plan
+    plan: workspace.plan,
+    isAdmin
   })
 })
 
@@ -133,8 +131,29 @@ app.get('/api/guests', async (c) => {
   return c.json({ guests: rows.results })
 })
 
-// R2 public base URL
-const R2_PUBLIC_BASE = 'https://pub-69d4a3d0d61d46359694bda9c1abfaf9.r2.dev'
+// R2_PUBLIC_BASE is now read from configurations table per request
+async function getR2Base(db: D1Database, workspaceId: string): Promise<string> {
+  const row = await db.prepare(
+    "SELECT value FROM configurations WHERE workspace_id = ? AND key = 'r2_public_base'"
+  ).bind(workspaceId).first<{ value: string }>()
+  return row?.value || ''
+}
+
+// Helper: Load all config for a workspace
+async function getConfig(
+  db: D1Database,
+  workspaceId: string
+): Promise<Record<string, string>> {
+  const rows = await db.prepare(
+    'SELECT key, value FROM configurations WHERE workspace_id = ?'
+  ).bind(workspaceId).all()
+
+  const config: Record<string, string> = {}
+  for (const row of rows.results as any[]) {
+    config[row.key] = row.value || ''
+  }
+  return config
+}
 
 // Helper: extract workspace ID from token
 function getWorkspaceId(auth: string | undefined): string | null {
@@ -182,7 +201,7 @@ app.post('/api/upload-manual', async (c) => {
     file.size
   ).run()
 
-  const publicUrl = `${R2_PUBLIC_BASE}/${r2Key}`
+  const publicUrl = `${await getR2Base(c.env.DB, workspaceId)}/${r2Key}`
   return c.json({ success: true, id, url: publicUrl })
 })
 
@@ -211,9 +230,10 @@ app.get('/api/gallery', async (c) => {
 
   const rows = await c.env.DB.prepare(query).bind(...params).all()
 
+  const r2Base = await getR2Base(c.env.DB, workspaceId)
   const photos = rows.results.map((row: any) => ({
     id: row.id,
-    url: `${R2_PUBLIC_BASE}/${row.r2_key_final}`,
+    url: `${r2Base}/${row.r2_key_final}`,
     uploadedBy: row.sender_name || 'Guest',
     phone: row.sender_phone,
     event: row.event_tag,
@@ -433,7 +453,7 @@ app.get('/api/submissions/:id/media-url', async (c) => {
   const key = row.r2_key_final || row.r2_key_pending
   if (!key) return c.json({ error: 'No media' }, 404)
 
-  return c.json({ url: `${R2_PUBLIC_BASE}/${key}` })
+  return c.json({ url: `${await getR2Base(c.env.DB, workspaceId)}/${key}` })
 })
 
 // Guests — CRUD
@@ -504,6 +524,215 @@ app.post('/api/guests/import', async (c) => {
   }
 
   return c.json({ success: true, count })
+})
+
+app.get('/api/config', async (c) => {
+  const auth = c.req.header('Authorization')
+  const workspaceId = getWorkspaceId(auth)
+  if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const isAdmin = (() => {
+    try {
+      return JSON.parse(atob(auth!.replace('Bearer ', ''))).isAdmin === true
+    } catch { return false }
+  })()
+
+  const rows = await c.env.DB.prepare(
+    'SELECT key, value, label, description, category, is_secret FROM configurations WHERE workspace_id = ? ORDER BY category, key'
+  ).bind(workspaceId).all()
+
+  const configs = (rows.results as any[]).map(row => ({
+    key: row.key,
+    value: isAdmin
+      ? (row.value || '')
+      : (row.is_secret ? '••••••••' : (row.value || '')),
+    label: row.label,
+    description: row.description,
+    category: row.category,
+    isSecret: row.is_secret === 1,
+    isEmpty: !row.value || row.value.trim() === ''
+  }))
+
+  return c.json({ configs })
+})
+
+app.put('/api/config', async (c) => {
+  const auth = c.req.header('Authorization')
+  const workspaceId = getWorkspaceId(auth)
+  if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
+
+  const isAdmin = (() => {
+    try {
+      return JSON.parse(atob(auth!.replace('Bearer ', ''))).isAdmin === true
+    } catch { return false }
+  })()
+  if (!isAdmin) return c.json({ error: 'Forbidden' }, 403)
+
+  const body = await c.req.json<{ updates: Array<{ key: string; value: string }> }>()
+  if (!body.updates || !Array.isArray(body.updates)) {
+    return c.json({ error: 'Invalid body' }, 400)
+  }
+
+  const statements = body.updates.map(({ key, value }) =>
+    c.env.DB.prepare(
+      `UPDATE configurations
+       SET value = ?, updated_at = datetime('now')
+       WHERE workspace_id = ? AND key = ?`
+    ).bind(value, workspaceId, key)
+  )
+
+  await c.env.DB.batch(statements)
+
+  const telegramKeys = ['telegram_bot_token', 'telegram_webhook_secret', 'telegram_enabled']
+  const hasTelegramUpdate = body.updates.some(u => telegramKeys.includes(u.key))
+
+  if (hasTelegramUpdate) {
+    const config = await getConfig(c.env.DB, workspaceId)
+    if (config.telegram_enabled === 'true' && config.telegram_bot_token) {
+      const webhookUrl = `https://medhashi-api.medhashi.workers.dev/telegram/webhook/${workspaceId}`
+      await fetch(
+        `https://api.telegram.org/bot${config.telegram_bot_token}/setWebhook`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: webhookUrl,
+            secret_token: config.telegram_webhook_secret || '',
+            allowed_updates: ['message']
+          })
+        }
+      )
+    }
+  }
+
+  return c.json({ success: true, updated: body.updates.length })
+})
+
+app.get('/api/config/public/:workspaceId', async (c) => {
+  const { workspaceId } = c.req.param()
+  
+  if (!workspaceId) return c.json({ error: 'Workspace ID required' }, 400)
+
+  const rows = await c.env.DB.prepare(
+    `SELECT key, value FROM configurations
+     WHERE workspace_id = ? AND is_secret = 0`
+  ).bind(workspaceId).all()
+
+  const config: Record<string, string> = {}
+  for (const row of rows.results as any[]) {
+    config[(row as any).key] = (row as any).value || ''
+  }
+
+  return c.json({ config })
+})
+
+app.post('/telegram/webhook/:workspaceId', async (c) => {
+  const { workspaceId } = c.req.param()
+  const secretHeader = c.req.header('X-Telegram-Bot-Api-Secret-Token')
+  const config = await getConfig(c.env.DB, workspaceId)
+
+  if (config.telegram_webhook_secret &&
+      secretHeader !== config.telegram_webhook_secret) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  if (config.telegram_enabled !== 'true') return c.json({ ok: true })
+
+  const body = await c.req.json<any>()
+  const message = body?.message
+  if (!message) return c.json({ ok: true })
+
+  const chatId = String(message.chat?.id || '')
+  const senderName = [
+    message.from?.first_name,
+    message.from?.last_name
+  ].filter(Boolean).join(' ') || 'Telegram Guest'
+  const senderPhone = ''
+
+  const photos = message.photo
+  if (photos && photos.length > 0) {
+    const photo = photos[photos.length - 1]
+    const fileId = photo.file_id
+
+    const fileRes = await fetch(
+      `https://api.telegram.org/bot${config.telegram_bot_token}/getFile?file_id=${fileId}`
+    )
+    const fileData = await fileRes.json<any>()
+    const filePath = fileData?.result?.file_path
+
+    if (filePath) {
+      const imgRes = await fetch(
+        `https://api.telegram.org/file/bot${config.telegram_bot_token}/${filePath}`
+      )
+
+      const submId = crypto.randomUUID()
+      const ext = filePath.split('.').pop() || 'jpg'
+      const r2Key = `workspaces/${workspaceId}/pending/${submId}.${ext}`
+
+      await c.env.R2_BUCKET.put(r2Key, imgRes.body as any, {
+        httpMetadata: { contentType: 'image/jpeg' }
+      })
+
+      const caption = (message.caption || '').toLowerCase()
+      let eventTag = 'general'
+      if (caption.includes('engagement')) eventTag = 'engagement'
+      else if (caption.includes('haldi') || caption.includes('mehandi') ||
+               caption.includes('sangeet')) eventTag = 'haldi'
+      else if (caption.includes('wedding') || caption.includes('shaadi') ||
+               caption.includes('vivah')) eventTag = 'wedding'
+
+      await c.env.DB.prepare(`
+        INSERT INTO submissions
+          (id, workspace_id, sender_name, sender_phone, event_tag,
+           r2_key_pending, media_type, status, received_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'image', 'pending', datetime('now'))
+      `).bind(
+        submId, workspaceId, senderName, senderPhone, eventTag, r2Key
+      ).run()
+
+      await fetch(
+        `https://api.telegram.org/bot${config.telegram_bot_token}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `Thank you ${senderName}! Your photo has been received and will appear in the gallery after review. 📸`
+          })
+        }
+      )
+
+      if (config.telegram_admin_chat_id) {
+        await fetch(
+          `https://api.telegram.org/bot${config.telegram_bot_token}/sendMessage`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: config.telegram_admin_chat_id,
+              text: `📸 New photo from ${senderName} (${eventTag})\nOpen admin to review: https://medhashi.com/admin-v2.html`
+            })
+          }
+        )
+      }
+    }
+  }
+
+  if (message.text) {
+    await fetch(
+      `https://api.telegram.org/bot${config.telegram_bot_token}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `Welcome to Medhashi! 💍\n\nTo share your photos:\n• Send your photos directly in this chat\n• Add a caption with the event name: engagement, haldi, or wedding\n\nYour photos will appear in the gallery after approval.`
+        })
+      }
+    )
+  }
+
+  return c.json({ ok: true })
 })
 
 export default app

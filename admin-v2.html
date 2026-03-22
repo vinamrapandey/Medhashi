@@ -269,7 +269,7 @@
     .main-content {
       flex: 1;
       padding: 20px 16px;
-      padding-bottom: 80px; /* space for bottom nav */
+      padding-bottom: 140px; /* space for bottom nav + sticky save btn */
       overflow-y: auto;
     }
 
@@ -377,10 +377,23 @@
     }
 
     .settings-bottom {
+      display: none !important;
+    }
+
+    .mobile-save-card {
+      position: fixed;
       left: 0;
+      right: 0;
       bottom: 60px; /* immediately above bottom-nav */
       padding: 16px;
       border-top: 1px solid var(--border);
+      background: var(--bg);
+      z-index: 900;
+      display: none; /* toggled by JS */
+    }
+
+    .mobile-save-card .btn-gold {
+      width: 100% !important;
     }
 
     .header-row {
@@ -586,6 +599,47 @@
     .full-width {
       grid-column: 1 / -1;
     }
+
+    /* Guest Detail Popup (mobile) */
+    .guest-detail-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 2000; display: none; align-items: flex-end; justify-content: center;
+    }
+    .guest-detail-overlay.active { display: flex; }
+    .guest-detail-sheet {
+      background: var(--surface1); border-radius: 16px 16px 0 0;
+      width: 100%; max-width: 480px; padding: 24px 20px 32px;
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .gd-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 18px; }
+    .gd-name { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; color: var(--text1); margin-bottom: 4px; }
+    .gd-phone { font-size: 14px; color: var(--text2); margin-bottom: 16px; }
+    .gd-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); }
+    .gd-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); }
+    .gd-value { font-size: 14px; color: var(--text1); display: flex; gap: 6px; align-items: center; }
+    .gd-upload-on { color: #22c55e; font-weight: 500; }
+    .gd-upload-off { color: var(--text2); font-weight: 500; }
+    .gd-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .gd-actions button { flex: 1; padding: 12px; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; }
+    .gd-btn-edit { background: var(--gold); color: #111; border: none; }
+    .gd-btn-delete { background: transparent; border: 1px solid var(--red); color: var(--red); }
+
+    /* Configuration Tab */
+    .config-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; position:relative; overflow:hidden;}
+    .config-card-title { font-size: 15px; color: var(--gold); margin-bottom: 6px; display:flex; align-items:center; gap:8px;}
+    .config-card-sub { font-size: 13px; color: var(--text2); margin-bottom: 20px; line-height:1.4;}
+    .config-row { margin-bottom: 16px; }
+    .config-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 6px; display: block; }
+    .config-input-wrap { position: relative; display:flex; gap:8px;}
+    .config-input { width: 100%; padding: 10px 14px; background: var(--surface3); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text1); font-family: monospace; font-size:13px;}
+    .config-input:focus { border-color: var(--gold); outline: none; }
+    .config-input.is-secret { padding-right: 40px; }
+    .eye-btn { position: absolute; right: 8px; top: 8px; color: var(--text2); padding: 4px; border-radius: 4px; }
+    .eye-btn:hover { background: var(--surface); color: var(--text1); }
+    .config-status { display:inline-block; padding: 2px 8px; border-radius: 99px; font-size:10px; font-weight:600; text-transform:uppercase; margin-left:auto;}
+    .status-ok { background: var(--green-dim); color: var(--green); }
+    .status-warn { background: var(--red-dim); color: var(--red); }
   </style>
 </head>
 <body>
@@ -626,6 +680,7 @@
           <div class="nav-item" onclick="switchTab('gallery')" data-tab="gallery"><i class="ph ph-image" style="font-size: 18px;"></i> Gallery</div>
           <div class="nav-item" onclick="switchTab('upload')" data-tab="upload"><i class="ph ph-upload-simple" style="font-size: 18px;"></i> Upload</div>
           <div class="nav-item" onclick="switchTab('settings')" data-tab="settings"><i class="ph ph-gear" style="font-size: 18px;"></i> Settings</div>
+          <div class="nav-item" onclick="switchTab('config')" data-tab="config"><i class="ph ph-wrench" style="font-size: 18px;"></i> Configuration</div>
         </div>
         <div class="sidebar-footer">
           <div class="nav-item sign-out" onclick="handleSignOut()"><i class="ph ph-sign-out" style="font-size: 18px;"></i> Sign Out</div>
@@ -764,9 +819,60 @@
             </div>
           </div>
 
+          <!-- Configuration Tab -->
+          <div id="tab-config" class="tab-panel">
+            <h1 class="page-title">Configuration</h1>
+            <div class="page-sub">Manage external integrations and system settings centrally.</div>
+            
+            <div id="config-content" style="max-width:800px; padding-bottom:80px;">
+              <!-- System Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title">System Settings</h2>
+                <div id="config-list-system"></div>
+              </div>
+              
+              <!-- WhatsApp Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title" style="display:flex;align-items:center;gap:8px;">
+                  WhatsApp Integration <span id="wa-status" class="config-status status-warn">Checking</span>
+                </h2>
+                <div id="config-list-whatsapp"></div>
+              </div>
+
+              <!-- Telegram Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title" style="display:flex;align-items:center;gap:8px;">
+                  Telegram Integration <span id="tg-status" class="config-status status-warn">Checking</span>
+                </h2>
+                <div id="config-list-telegram"></div>
+              </div>
+
+              <!-- Storage Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title">Storage & CDN</h2>
+                <div id="config-list-storage"></div>
+              </div>
+
+              <!-- Payment Configs -->
+              <div class="settings-section">
+                <h2 class="settings-section-title">Payments (Razorpay)</h2>
+                <div id="config-list-payments"></div>
+              </div>
+            </div>
+            
+            <div class="settings-bottom">
+              <button class="btn-gold" style="width:100%; max-width:400px;" onclick="saveConfig()">Save Configurations</button>
+            </div>
+          </div>
+
         </div>
       </main>
       
+      <!-- Mobile Save Settings Card (Sticky) -->
+      <div id="mobile-save-card" class="mobile-save-card">
+        <button class="btn-gold" onclick="saveSettings()">Save Settings</button>
+      </div>
+
       <!-- Bottom nav (mobile only) -->
       <nav class="bottom-nav" id="bottom-nav">
         <button class="bottom-nav-item active" data-tab="overview"
@@ -795,6 +901,11 @@
           onclick="switchTab('settings')">
           <i class="ph ph-gear bottom-nav-icon"></i>
           <span class="bottom-nav-label">Settings</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="config"
+          onclick="switchTab('config')">
+          <i class="ph ph-wrench bottom-nav-icon"></i>
+          <span class="bottom-nav-label">Config</span>
         </button>
       </nav>
     </div>
@@ -855,10 +966,31 @@
     <div id="lb-info" class="lightbox-info"></div>
   </div>
 
+  <!-- Guest Detail Popup -->
+  <div class="guest-detail-overlay" id="guestDetailOverlay" onclick="closeGuestDetail()">
+    <div class="guest-detail-sheet" onclick="event.stopPropagation()">
+      <div class="gd-handle"></div>
+      <div class="gd-name" id="gd-name"></div>
+      <div class="gd-phone" id="gd-phone"></div>
+      <div class="gd-row">
+        <span class="gd-label">Events Invited</span>
+        <span class="gd-value" id="gd-events"></span>
+      </div>
+      <div class="gd-row">
+        <span class="gd-label">Can Upload Photos</span>
+        <span class="gd-value" id="gd-upload"></span>
+      </div>
+      <div class="gd-actions">
+        <button class="gd-btn-edit" id="gd-edit-btn">Edit</button>
+        <button class="gd-btn-delete" id="gd-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
   <script>
     const API_BASE = 'https://medhashi-api.medhashi.workers.dev';
-    const state = { token: null, workspaceId: null, workspaceName: null, tab: 'overview', guests: [], submissions: [], gallery: [], stats: {}, config: {} };
+    const state = { token: null, workspaceId: null, workspaceName: null, tab: 'overview', guests: [], submissions: [], gallery: [], stats: {}, config: {}, configItems: [] };
 
     window.onload = () => {
       const stored = sessionStorage.getItem('admin_token');
@@ -957,11 +1089,25 @@
       document.getElementById('tab-' + tabName).classList.add('active');
       state.tab = tabName;
 
+      const msc = document.getElementById('mobile-save-card');
+      if (msc) {
+        if (tabName === 'settings') {
+          msc.style.display = 'block';
+          msc.innerHTML = '<button class="btn-gold" onclick="saveSettings()">Save Settings</button>';
+        } else if (tabName === 'config') {
+          msc.style.display = 'block';
+          msc.innerHTML = '<button class="btn-gold" onclick="saveConfig()">Save Configurations</button>';
+        } else {
+          msc.style.display = 'none';
+        }
+      }
+
       if (tabName === 'overview') loadOverview();
       else if (tabName === 'guests') loadGuests();
       else if (tabName === 'review') loadReview();
       else if (tabName === 'gallery') loadGallery();
       else if (tabName === 'settings') loadSettings();
+      else if (tabName === 'config') loadConfig();
     }
 
     async function loadOverview() {
@@ -1031,17 +1177,44 @@
         const wBadge = evts.includes('wedding') ? '<span class="event-badge active">W</span>' : '<span class="event-badge">W</span>';
         const upDot = g.can_upload ? '<span class="dot green"></span>On' : '<span class="dot gray"></span>Off';
         
-        return `<tr>
+        return `<tr onclick="showGuestDetail('${g.id}')" style="cursor:pointer;">
           <td style="font-weight:500;">${g.name}</td>
           <td style="color:var(--text2);">${g.phone || '-'}</td>
           <td>${eBadge}${hBadge}${wBadge}</td>
           <td>${upDot}</td>
           <td>
-            <button onclick="editGuest('${g.id}')" style="font-size:16px;color:var(--text1);"><i class="ph ph-pencil-simple"></i></button>
-            <button onclick="deleteGuest('${g.id}')" style="font-size:16px;color:var(--red);margin-left:8px;"><i class="ph ph-trash"></i></button>
+            <button onclick="event.stopPropagation();editGuest('${g.id}')" style="font-size:16px;color:var(--text1);"><i class="ph ph-pencil-simple"></i></button>
+            <button onclick="event.stopPropagation();deleteGuest('${g.id}')" style="font-size:16px;color:var(--red);margin-left:8px;"><i class="ph ph-trash"></i></button>
           </td>
         </tr>`;
       }).join('');
+    }
+
+    function showGuestDetail(id) {
+      const g = state.guests.find(x => x.id == id);
+      if (!g) return;
+      let evts = []; try { evts = JSON.parse(g.events || '[]'); } catch(e) {}
+      
+      document.getElementById('gd-name').textContent = g.name;
+      document.getElementById('gd-phone').textContent = g.phone || 'No phone';
+      
+      const evtNames = { engagement: 'Engagement', haldi: 'Haldi', wedding: 'Wedding' };
+      document.getElementById('gd-events').innerHTML = evts.map(e => 
+        `<span class="event-badge active">${evtNames[e] || e}</span>`
+      ).join('') || '<span style="color:var(--text2)">None</span>';
+      
+      document.getElementById('gd-upload').innerHTML = g.can_upload 
+        ? '<span class="gd-upload-on">● Yes</span>' 
+        : '<span class="gd-upload-off">● No</span>';
+      
+      document.getElementById('gd-edit-btn').onclick = () => { closeGuestDetail(); editGuest(id); };
+      document.getElementById('gd-delete-btn').onclick = () => { closeGuestDetail(); deleteGuest(id); };
+      
+      document.getElementById('guestDetailOverlay').classList.add('active');
+    }
+
+    function closeGuestDetail() {
+      document.getElementById('guestDetailOverlay').classList.remove('active');
     }
 
     function openModal(id) { document.getElementById(id).classList.add('active'); }
@@ -1058,7 +1231,7 @@
     }
     
     function editGuest(id) {
-      const g = state.guests.find(x => x.id === id);
+      const g = state.guests.find(x => x.id == id);
       if(!g) return;
       document.getElementById('g-id').value = g.id;
       document.getElementById('g-name').value = g.name;
@@ -1403,6 +1576,113 @@
         showToast('Settings saved');
       } catch(e) { showToast('Failed to save', 'error'); }
     }
+
+    // --- Configuration Tab Methods ---
+    async function loadConfig() {
+      try {
+        const data = await api('GET', '/api/config');
+        state.configItems = data.configs || [];
+        renderConfig();
+        updateStatusPills();
+      } catch(e) {
+        showToast('Failed to load configurations', 'error');
+      }
+    }
+
+    function renderConfig() {
+      const categories = ['system', 'whatsapp', 'telegram', 'storage', 'payments'];
+      categories.forEach(cat => {
+        const container = document.getElementById(`config-list-${cat}`);
+        if (!container) return;
+        
+        const items = state.configItems.filter(item => item.category === cat);
+        container.innerHTML = items.map(item => `
+          <div class="config-row">
+            <label class="config-label" title="${item.key}">${item.label}</label>
+            <div class="config-input-wrap">
+              <input type="${item.isSecret ? 'password' : 'text'}" 
+                     class="config-input ${item.isSecret ? 'is-secret' : ''}" 
+                     value="${item.value}" 
+                     data-config-key="${item.key}"
+                     placeholder="${item.isEmpty ? 'Not configured' : ''}">
+              ${item.isSecret ? `<button class="eye-btn" onclick="toggleSecret(this)"><i class="ph ph-eye"></i></button>` : ''}
+            </div>
+            <div style="font-size:11px; color:var(--text2); margin-top:4px;">${item.description}</div>
+          </div>
+        `).join('');
+      });
+    }
+
+    function toggleSecret(btn) {
+      const input = btn.previousElementSibling;
+      const icon = btn.querySelector('i');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'ph ph-eye-slash';
+      } else {
+        input.type = 'password';
+        icon.className = 'ph ph-eye';
+      }
+    }
+
+    async function saveConfig() {
+      const inputs = document.querySelectorAll('input[data-config-key]');
+      const updates = [];
+      let hasChanges = false;
+
+      inputs.forEach(input => {
+        const key = input.dataset.configKey;
+        const value = input.value;
+        const originalItem = state.configItems.find(item => item.key === key);
+        
+        if (originalItem && value !== originalItem.value && value !== '••••••••') {
+          updates.push({ key, value });
+          hasChanges = true;
+          originalItem.value = value;
+          originalItem.isEmpty = value.trim() === '';
+        }
+      });
+
+      if (!hasChanges) {
+        showToast('No changes to save');
+        return;
+      }
+
+      try {
+        await api('PUT', '/api/config', { updates });
+        showToast('Configurations saved cleanly');
+        updateStatusPills();
+      } catch(e) {
+        showToast('Failed to save configurations', 'error');
+      }
+    }
+
+    function updateStatusPills() {
+      const waItem = state.configItems.find(i => i.key === 'whatsapp_number');
+      const waStatus = document.getElementById('wa-status');
+      if (waStatus) {
+        if (waItem && waItem.value && waItem.value !== '••••••••' && !waItem.isEmpty) {
+          waStatus.className = 'config-status status-ok';
+          waStatus.textContent = 'Active';
+        } else {
+          waStatus.className = 'config-status status-warn';
+          waStatus.textContent = 'Not Set';
+        }
+      }
+
+      const tgToken = state.configItems.find(i => i.key === 'telegram_bot_token');
+      const tgStatus = document.getElementById('tg-status');
+      if (tgStatus) {
+        if (tgToken && tgToken.value && tgToken.value !== '••••••••' && !tgToken.isEmpty) {
+          tgStatus.className = 'config-status status-ok';
+          tgStatus.textContent = 'Active';
+        } else {
+          tgStatus.className = 'config-status status-warn';
+          tgStatus.textContent = 'Missing Token';
+        }
+      }
+    }
+
   </script>
 </body>
 </html>
