@@ -1,56 +1,27 @@
+-- Mimries Auth Schema Init
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name TEXT,
+  account_type TEXT CHECK (account_type IN ('couple', 'planner')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own profile" ON profiles
+  FOR ALL USING (auth.uid() = id);
+
 CREATE TABLE IF NOT EXISTS workspaces (
-    id TEXT PRIMARY KEY,
-    couple_names TEXT,
-    wedding_date TEXT,
-    plan TEXT,
-    storage_used INTEGER DEFAULT 0,
-    storage_limit INTEGER,
-    admin_pin_hash TEXT,
-    active INTEGER DEFAULT 1,
-    data_deleted INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  slug TEXT UNIQUE NOT NULL,
+  display_name TEXT NOT NULL,
+  cloudflare_workspace_id TEXT UNIQUE NOT NULL,
+  wedding_date DATE,
+  city TEXT,
+  state TEXT,
+  plan TEXT DEFAULT 'free',
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-CREATE TABLE IF NOT EXISTS guests (
-    id TEXT PRIMARY KEY,
-    workspace_id TEXT,
-    name TEXT,
-    phone TEXT,
-    events TEXT,
-    can_upload INTEGER DEFAULT 1,
-    rsvp_status TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(workspace_id) REFERENCES workspaces(id)
-);
-CREATE INDEX IF NOT EXISTS idx_guests_workspace_id ON guests(workspace_id);
-CREATE INDEX IF NOT EXISTS idx_guests_phone ON guests(phone);
-
-CREATE TABLE IF NOT EXISTS submissions (
-    id TEXT PRIMARY KEY,
-    workspace_id TEXT,
-    sender_name TEXT,
-    sender_phone TEXT,
-    event_tag TEXT,
-    r2_key_pending TEXT,
-    r2_key_final TEXT,
-    media_type TEXT,
-    file_size INTEGER,
-    status TEXT DEFAULT 'pending',
-    reviewed_by TEXT,
-    reviewed_at TIMESTAMP,
-    received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(workspace_id) REFERENCES workspaces(id)
-);
-CREATE INDEX IF NOT EXISTS idx_submissions_workspace_status ON submissions(workspace_id, status);
-
-CREATE TABLE IF NOT EXISTS access_logs (
-    id TEXT PRIMARY KEY,
-    workspace_id TEXT,
-    phone TEXT,
-    guest_name TEXT,
-    action TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(workspace_id) REFERENCES workspaces(id)
-);
-CREATE INDEX IF NOT EXISTS idx_access_logs_workspace_id ON access_logs(workspace_id);
+ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Owners can manage workspaces" ON workspaces
+  FOR ALL USING (auth.uid() = owner_id);
