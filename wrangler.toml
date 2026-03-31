@@ -1,16 +1,16 @@
-name = "medhashi-api"
+name = "mimries-api"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "medhashi-db"
-database_id = "4e4e9d6e-827d-4ff2-83f1-ec786c44ed01"
+database_name = "mimries-db"
+database_id = "c011dfcd-370d-4c0d-9354-1f202af16ebd"
 
 [[r2_buckets]]
 binding = "R2_BUCKET"
-bucket_name = "medhashi-media"
+bucket_name = "mimries-media"
 
 [vars]
 ENVIRONMENT = "production"

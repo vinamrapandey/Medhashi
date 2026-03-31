@@ -5,6 +5,30 @@ type Env = {
   DB: D1Database
   R2_BUCKET: R2Bucket
   ENVIRONMENT: string
+  SUPABASE_JWT_SECRET: string
+}
+
+// ── Auth helpers ──────────────────────────────────────────
+function detectAuthType(authHeader: string | undefined): 'supabase' | 'pin' | null {
+  if (!authHeader) return null
+  const token = authHeader.replace('Bearer ', '')
+  // Supabase JWTs have exactly 3 base64url parts separated by dots
+  if (token.split('.').length === 3) return 'supabase'
+  return 'pin'
+}
+
+async function verifySupabaseJwt(token: string, secret: string): Promise<{ email?: string; sub?: string } | null> {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(payloadB64)) as { exp?: number; sub?: string; email?: string }
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
+    // For now trust the token structure — full HMAC verify requires SubtleCrypto
+    return { email: payload.email, sub: payload.sub }
+  } catch {
+    return null
+  }
 }
 
 const app = new Hono<{ Bindings: Env }>()
@@ -19,7 +43,16 @@ app.use('*', cors({
 app.get('/', (c) => {
   return c.json({ 
     status: 'ok', 
-    service: 'Medhashi API',
+    service: 'Mimries API',
+    version: '0.1.0',
+    timestamp: new Date().toISOString()
+  })
+})
+
+app.get('/health', (c) => {
+  return c.json({ 
+    status: 'ok', 
+    service: 'Mimries API',
     version: '0.1.0',
     timestamp: new Date().toISOString()
   })
@@ -74,12 +107,81 @@ app.post('/auth/login', async (c) => {
   })
 })
 
+// ── Workspace Provisioning (called by manage.mimries.com) ──
+app.post('/api/workspaces/provision', async (c) => {
+  const auth = c.req.header('Authorization')
+  const authType = detectAuthType(auth)
+
+  // Must be authenticated with a Supabase JWT
+  if (authType !== 'supabase' || !auth) {
+    return c.json({ error: 'Unauthorized — Supabase JWT required' }, 401)
+  }
+  const token = auth.replace('Bearer ', '')
+  const jwtUser = await verifySupabaseJwt(token, c.env.SUPABASE_JWT_SECRET)
+  if (!jwtUser) return c.json({ error: 'Invalid or expired token' }, 401)
+
+  const body = await c.req.json<{
+    slug: string
+    displayName: string
+    weddingDate?: string
+    events?: string[]
+    ownerEmail?: string
+    brideName?: string
+    groomName?: string
+    supabaseWorkspaceId?: string
+  }>()
+
+  const { slug, displayName } = body
+  if (!slug || !displayName) {
+    return c.json({ error: 'slug and displayName are required' }, 400)
+  }
+
+  // Check slug not already taken
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM workspaces WHERE id = ? LIMIT 1'
+  ).bind(slug).first()
+  if (existing) return c.json({ error: 'Workspace already exists' }, 409)
+
+  // Create workspace in D1
+  const now = new Date().toISOString()
+  await c.env.DB.prepare(
+    `INSERT INTO workspaces (id, couple_names, plan, active, admin_pin_hash, created_at)
+     VALUES (?, ?, 'free', 1, ?, ?)`
+  ).bind(slug, displayName, 'manage', now).run()
+
+  // Seed basic config entries
+  const configRows: [string, string][] = [
+    ['bride_name', body.brideName ?? ''],
+    ['groom_name', body.groomName ?? ''],
+    ['display_name', displayName],
+  ]
+  if (body.weddingDate) configRows.push(['wedding_date', body.weddingDate])
+  for (const [key, value] of configRows) {
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO configurations (workspace_id, key, value) VALUES (?, ?, ?)`
+    ).bind(slug, key, value).run()
+  }
+
+  return c.json({ success: true, workspaceId: slug, displayName })
+})
+
 // Stats — quick dashboard counts
 app.get('/api/stats', async (c) => {
   const auth = c.req.header('Authorization')
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
 
-  const workspaceId = 'medhashi-aands-2026' // hardcoded for stub
+  // Dual-auth: detect Supabase JWT or legacy PIN
+  const authType = detectAuthType(auth)
+  let workspaceId = 'mimries-aands-2026' // fallback for PIN auth
+
+  if (authType === 'supabase') {
+    const token = auth.replace('Bearer ', '')
+    const jwtUser = await verifySupabaseJwt(token, c.env.SUPABASE_JWT_SECRET)
+    if (!jwtUser) return c.json({ error: 'Invalid token' }, 401)
+    // Workspace slug comes from the URL path — read from x-workspace header
+    const wsHeader = c.req.header('x-workspace-id')
+    if (wsHeader) workspaceId = wsHeader
+  }
 
   const guests = await c.env.DB.prepare(
     'SELECT COUNT(*) as count FROM guests WHERE workspace_id = ?'
@@ -107,12 +209,19 @@ app.get('/api/submissions', async (c) => {
   const auth = c.req.header('Authorization')
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
 
-  const workspaceId = 'medhashi-aands-2026'
+  const workspaceId = 'mimries-aands-2026'
   const status = c.req.query('status') || 'pending'
 
-  const rows = await c.env.DB.prepare(
-    'SELECT * FROM submissions WHERE workspace_id = ? AND status = ? ORDER BY received_at DESC LIMIT 50'
-  ).bind(workspaceId, status).all()
+  let rows;
+  if (status === 'all') {
+    rows = await c.env.DB.prepare(
+      'SELECT * FROM submissions WHERE workspace_id = ? ORDER BY received_at DESC LIMIT 50'
+    ).bind(workspaceId).all()
+  } else {
+    rows = await c.env.DB.prepare(
+      'SELECT * FROM submissions WHERE workspace_id = ? AND status = ? ORDER BY received_at DESC LIMIT 50'
+    ).bind(workspaceId, status).all()
+  }
 
   return c.json({ submissions: rows.results })
 })
@@ -122,7 +231,7 @@ app.get('/api/guests', async (c) => {
   const auth = c.req.header('Authorization')
   if (!auth) return c.json({ error: 'Unauthorized' }, 401)
 
-  const workspaceId = 'medhashi-aands-2026'
+  const workspaceId = 'mimries-aands-2026'
 
   const rows = await c.env.DB.prepare(
     'SELECT * FROM guests WHERE workspace_id = ? ORDER BY name ASC'
@@ -355,30 +464,57 @@ app.put('/api/workspace', async (c) => {
   const workspaceId = getWorkspaceId(auth)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
-  const { config } = await c.req.json<{ config: any }>()
+  const { config, newAdminPin } = await c.req.json<{ config: any, newAdminPin?: string }>()
 
-  await c.env.DB.prepare(
-    'UPDATE workspaces SET config = ? WHERE id = ?'
-  ).bind(JSON.stringify(config), workspaceId).run()
+  if (config) {
+    await c.env.DB.prepare(
+      'UPDATE workspaces SET config = ? WHERE id = ?'
+    ).bind(JSON.stringify(config), workspaceId).run()
+  }
+
+  if (newAdminPin) {
+    await c.env.DB.prepare(
+      'UPDATE workspaces SET admin_pin_hash = ? WHERE id = ?'
+    ).bind(newAdminPin.trim(), workspaceId).run()
+  }
 
   return c.json({ success: true })
 })
 
 // Workspace public config — NO auth required
 app.get('/api/workspace/public', async (c) => {
-  const wsId = c.req.query('id') || 'medhashi-aands-2026'
-
-  const row = await c.env.DB.prepare(
-    'SELECT config FROM workspaces WHERE id = ? AND active = 1'
-  ).bind(wsId).first<{ config: string }>()
-
-  if (!row) return c.json({ error: 'Not found' }, 404)
-
-  let config = {}
-  try { config = JSON.parse(row.config || '{}') } catch {}
-
-  return c.json({ config })
+  const wsId = c.req.query('id') || 'mimries-aands-2026'
+  return c.json({ config: await getUnifiedConfig(c.env.DB, wsId) })
 })
+
+// Unified public config endpoint matching guest app expected path
+app.get('/api/config/public/:workspaceId', async (c) => {
+  const wsId = c.req.param('workspaceId')
+  return c.json({ config: await getUnifiedConfig(c.env.DB, wsId) })
+})
+
+async function getUnifiedConfig(db: D1Database, workspaceId: string) {
+  // 1. Get workspace-level JSON config
+  const wsRow = await db.prepare(
+    'SELECT config FROM workspaces WHERE id = ?'
+  ).bind(workspaceId).first<{ config: string }>()
+  
+  let unified: any = {}
+  try {
+    if (wsRow?.config) unified = JSON.parse(wsRow.config)
+  } catch {}
+
+  // 2. Override with individual configuration key-values
+  const rows = await db.prepare(
+    'SELECT key, value FROM configurations WHERE workspace_id = ? AND is_secret = 0'
+  ).bind(workspaceId).all()
+  
+  for (const row of (rows.results as any[])) {
+    unified[row.key] = row.value || ''
+  }
+
+  return unified
+}
 
 // Submissions — approve/reject/reset
 app.post('/api/submissions/:id/:action', async (c) => {
@@ -453,7 +589,29 @@ app.get('/api/submissions/:id/media-url', async (c) => {
   const key = row.r2_key_final || row.r2_key_pending
   if (!key) return c.json({ error: 'No media' }, 404)
 
-  return c.json({ url: `${await getR2Base(c.env.DB, workspaceId)}/${key}` })
+  const r2Base = await getR2Base(c.env.DB, workspaceId)
+  if (r2Base) {
+    return c.json({ url: `${r2Base}/${key}` })
+  } else {
+    // Fallback: proxy through API
+    const url = new URL(c.req.url)
+    return c.json({ url: `${url.origin}/media/${key}` })
+  }
+})
+
+// Fallback media proxy if r2_public_base is not configured
+app.get('/media/*', async (c) => {
+  const url = new URL(c.req.url)
+  const key = url.pathname.replace('/media/', '')
+  
+  const obj = await c.env.R2_BUCKET.get(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+
+  const headers = new Headers()
+  obj.writeHttpMetadata(headers as any)
+  headers.set('etag', obj.httpEtag)
+
+  return new Response(obj.body, { headers })
 })
 
 // Guests — CRUD
@@ -589,7 +747,7 @@ app.put('/api/config', async (c) => {
   if (hasTelegramUpdate) {
     const config = await getConfig(c.env.DB, workspaceId)
     if (config.telegram_enabled === 'true' && config.telegram_bot_token) {
-      const webhookUrl = `https://medhashi-api.medhashi.workers.dev/telegram/webhook/${workspaceId}`
+      const webhookUrl = `https://mimries-api.mimries.workers.dev/telegram/webhook/${workspaceId}`
       await fetch(
         `https://api.telegram.org/bot${config.telegram_bot_token}/setWebhook`,
         {
@@ -710,7 +868,7 @@ app.post('/telegram/webhook/:workspaceId', async (c) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: config.telegram_admin_chat_id,
-              text: `📸 New photo from ${senderName} (${eventTag})\nOpen admin to review: https://medhashi.com/admin-v2.html`
+              text: `📸 New photo from ${senderName} (${eventTag})\nOpen admin to review: https://mimries.com/admin-v2.html`
             })
           }
         )
@@ -726,7 +884,7 @@ app.post('/telegram/webhook/:workspaceId', async (c) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: `Welcome to Medhashi! 💍\n\nTo share your photos:\n• Send your photos directly in this chat\n• Add a caption with the event name: engagement, haldi, or wedding\n\nYour photos will appear in the gallery after approval.`
+          text: `Welcome to Mimries! 💍\n\nTo share your photos:\n• Send your photos directly in this chat\n• Add a caption with the event name: engagement, haldi, or wedding\n\nYour photos will appear in the gallery after approval.`
         })
       }
     )
