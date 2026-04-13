@@ -136,33 +136,87 @@ app.post('/api/workspaces/provision', async (c) => {
     return c.json({ error: 'slug and displayName are required' }, 400)
   }
 
-  // Check slug not already taken
+  // Idempotent — if workspace already exists (e.g. retry after partial failure),
+  // return success so onboarding can complete without a second error.
   const existing = await c.env.DB.prepare(
     'SELECT id FROM workspaces WHERE id = ? LIMIT 1'
   ).bind(slug).first()
-  if (existing) return c.json({ error: 'Workspace already exists' }, 409)
+  if (existing) return c.json({ success: true, workspaceId: slug, displayName, alreadyExists: true })
 
-  // Create workspace in D1
   const now = new Date().toISOString()
-  await c.env.DB.prepare(
-    `INSERT INTO workspaces (id, couple_names, plan, active, admin_pin_hash, created_at)
-     VALUES (?, ?, 'free', 1, ?, ?)`
-  ).bind(slug, displayName, 'manage', now).run()
 
-  // Seed basic config entries
-  const configRows: [string, string][] = [
-    ['bride_name', body.brideName ?? ''],
-    ['groom_name', body.groomName ?? ''],
-    ['display_name', displayName],
-  ]
-  if (body.weddingDate) configRows.push(['wedding_date', body.weddingDate])
-  for (const [key, value] of configRows) {
+  // Step 1 — Insert workspace row (columns guaranteed to exist in D1 schema)
+  await c.env.DB.prepare(
+    `INSERT INTO workspaces
+       (id, owner_supabase_id, slug, display_name, plan, wedding_date, active, created_at)
+     VALUES (?, ?, ?, ?, 'free', ?, 1, ?)`
+  ).bind(slug, jwtUser.sub ?? '', slug, displayName, body.weddingDate || null, now).run()
+
+  // Step 2 — Store initial config JSON with couple names + events.
+  // Requires ALTER TABLE workspaces ADD COLUMN config TEXT; to have been run in D1.
+  // If the column doesn't exist yet this UPDATE fails silently and workspace still works.
+  const EVENT_TITLES: Record<string, string> = {
+    wedding: 'Wedding',
+    engagement: 'Engagement',
+    haldi: 'Haldi & Mehandi',
+    sangeet: 'Sangeet',
+  }
+  const eventObjects = (body.events ?? ['wedding']).map((key: string) => ({
+    key,
+    title: EVENT_TITLES[key] ?? (key.charAt(0).toUpperCase() + key.slice(1)),
+  }))
+  const initialConfig = JSON.stringify({
+    brideName: body.brideName ?? '',
+    groomName: body.groomName ?? '',
+    events: eventObjects,
+  })
+  try {
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO configurations (workspace_id, key, value) VALUES (?, ?, ?)`
-    ).bind(slug, key, value).run()
+      'UPDATE workspaces SET config = ? WHERE id = ?'
+    ).bind(initialConfig, slug).run()
+  } catch {
+    // config column not yet added via migration — workspace row is created, config will be empty
   }
 
   return c.json({ success: true, workspaceId: slug, displayName })
+})
+
+// Workspace config — save (Supabase JWT, used by manage portal settings page)
+app.post('/api/workspace/config', async (c) => {
+  const auth = c.req.header('Authorization')
+  const authType = detectAuthType(auth)
+  if (authType !== 'supabase' || !auth) return c.json({ error: 'Unauthorized — Supabase JWT required' }, 401)
+
+  const token = auth.replace('Bearer ', '')
+  const jwtUser = await verifySupabaseJwt(token, c.env.SUPABASE_JWT_SECRET)
+  if (!jwtUser) return c.json({ error: 'Invalid or expired token' }, 401)
+
+  const workspaceId = c.req.header('x-workspace-id')
+  if (!workspaceId) return c.json({ error: 'x-workspace-id header required' }, 400)
+
+  // Verify the requesting user owns this workspace
+  const ws = await c.env.DB.prepare(
+    'SELECT id FROM workspaces WHERE id = ? AND owner_supabase_id = ?'
+  ).bind(workspaceId, jwtUser.sub ?? '').first()
+  if (!ws) return c.json({ error: 'Workspace not found or unauthorized' }, 403)
+
+  const body = await c.req.json<Record<string, unknown>>()
+
+  // Merge incoming fields into existing config JSON
+  const existing = await c.env.DB.prepare(
+    'SELECT config FROM workspaces WHERE id = ?'
+  ).bind(workspaceId).first<{ config: string }>()
+
+  let config: Record<string, unknown> = {}
+  try { if (existing?.config) config = JSON.parse(existing.config) } catch {}
+
+  Object.assign(config, body)
+
+  await c.env.DB.prepare(
+    'UPDATE workspaces SET config = ? WHERE id = ?'
+  ).bind(JSON.stringify(config), workspaceId).run()
+
+  return c.json({ success: true })
 })
 
 // Stats — quick dashboard counts
@@ -494,23 +548,41 @@ app.get('/api/config/public/:workspaceId', async (c) => {
 })
 
 async function getUnifiedConfig(db: D1Database, workspaceId: string) {
-  // 1. Get workspace-level JSON config
+  // 1. Always fetch core workspace columns (guaranteed to exist in schema)
   const wsRow = await db.prepare(
-    'SELECT config FROM workspaces WHERE id = ?'
-  ).bind(workspaceId).first<{ config: string }>()
-  
-  let unified: any = {}
-  try {
-    if (wsRow?.config) unified = JSON.parse(wsRow.config)
-  } catch {}
+    'SELECT display_name, slug, wedding_date, plan FROM workspaces WHERE id = ?'
+  ).bind(workspaceId).first<{ display_name: string; slug: string; wedding_date: string; plan: string }>()
 
-  // 2. Override with individual configuration key-values
-  const rows = await db.prepare(
-    'SELECT key, value FROM configurations WHERE workspace_id = ? AND is_secret = 0'
-  ).bind(workspaceId).all()
-  
-  for (const row of (rows.results as any[])) {
-    unified[row.key] = row.value || ''
+  // Workspace doesn't exist at all — return empty so guest page shows 404
+  if (!wsRow) return {}
+
+  // Seed unified config from guaranteed columns so guest page always has a name to render
+  const unified: any = {
+    display_name: wsRow.display_name,
+    wedding_date: wsRow.wedding_date ?? null,
+    plan: wsRow.plan,
+  }
+
+  // 2. Merge config JSON column (may not exist if ALTER TABLE hasn't been run yet)
+  try {
+    const configRow = await db.prepare(
+      'SELECT config FROM workspaces WHERE id = ?'
+    ).bind(workspaceId).first<{ config: string }>()
+    if (configRow?.config) Object.assign(unified, JSON.parse(configRow.config))
+  } catch {
+    // config column not yet added via migration — core columns already seeded above
+  }
+
+  // 3. Override with individual configuration key-values from configurations table
+  try {
+    const rows = await db.prepare(
+      'SELECT key, value FROM configurations WHERE workspace_id = ? AND is_secret = 0'
+    ).bind(workspaceId).all()
+    for (const row of (rows.results as any[])) {
+      unified[row.key] = row.value || ''
+    }
+  } catch {
+    // configurations table may not exist in all environments
   }
 
   return unified
@@ -766,23 +838,8 @@ app.put('/api/config', async (c) => {
   return c.json({ success: true, updated: body.updates.length })
 })
 
-app.get('/api/config/public/:workspaceId', async (c) => {
-  const { workspaceId } = c.req.param()
-  
-  if (!workspaceId) return c.json({ error: 'Workspace ID required' }, 400)
-
-  const rows = await c.env.DB.prepare(
-    `SELECT key, value FROM configurations
-     WHERE workspace_id = ? AND is_secret = 0`
-  ).bind(workspaceId).all()
-
-  const config: Record<string, string> = {}
-  for (const row of rows.results as any[]) {
-    config[(row as any).key] = (row as any).value || ''
-  }
-
-  return c.json({ config })
-})
+// Note: /api/config/public/:workspaceId is registered above (getUnifiedConfig).
+// Duplicate removed — only one handler should exist for this route.
 
 app.post('/telegram/webhook/:workspaceId', async (c) => {
   const { workspaceId } = c.req.param()
