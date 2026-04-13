@@ -41,12 +41,115 @@ app.use('*', cors({
 
 // Health check
 app.get('/', (c) => {
-  return c.json({ 
-    status: 'ok', 
+  return c.json({
+    status: 'ok',
     service: 'Mimries API',
     version: '0.1.0',
     timestamp: new Date().toISOString()
   })
+})
+
+// ── Public Guest App Endpoints (no auth required) ─────────────────────────
+
+// Guest lookup — guest enters their phone number, we check if they're on the list
+app.get('/api/public/guests/lookup', async (c) => {
+  const workspaceId = c.req.query('workspace')
+  const phone = c.req.query('phone')
+
+  if (!workspaceId || !phone) return c.json({ error: 'workspace and phone required' }, 400)
+  if (!/^\d{10}$/.test(phone)) return c.json({ found: false, error: 'Invalid phone' })
+
+  const guest = await c.env.DB.prepare(
+    'SELECT id, name, events, can_upload FROM guests WHERE workspace_id = ? AND phone = ? LIMIT 1'
+  ).bind(workspaceId, phone).first<{ id: string; name: string; events: string; can_upload: number }>()
+
+  if (!guest) return c.json({ found: false })
+
+  // Log access non-blocking
+  const logId = crypto.randomUUID()
+  c.executionCtx?.waitUntil(
+    c.env.DB.prepare(
+      'INSERT OR IGNORE INTO access_logs (id, workspace_id, guest_phone, guest_name, accessed_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(logId, workspaceId, phone, guest.name, new Date().toISOString()).run()
+  )
+
+  return c.json({
+    found: true,
+    guest: {
+      name: guest.name,
+      events: JSON.parse(guest.events || '[]'),
+      canUpload: guest.can_upload === 1,
+    }
+  })
+})
+
+// Public gallery — approved photos for a workspace/event (no auth)
+app.get('/api/public/gallery', async (c) => {
+  const workspaceId = c.req.query('workspace')
+  const eventKey = c.req.query('event')
+
+  if (!workspaceId) return c.json({ error: 'workspace required' }, 400)
+
+  const params: string[] = [workspaceId]
+  let query = `SELECT id, r2_key_final, sender_name, source, event_key
+               FROM submissions
+               WHERE workspace_id = ? AND status = 'approved' AND r2_key_final IS NOT NULL`
+  if (eventKey) { query += ' AND event_key = ?'; params.push(eventKey) }
+  query += ' ORDER BY reviewed_at DESC LIMIT 100'
+
+  const rows = await c.env.DB.prepare(query).bind(...params).all()
+  const apiBase = new URL(c.req.url).origin
+
+  const photos = (rows.results as any[]).map(row => ({
+    id: row.id,
+    // Use the /media/* proxy endpoint which serves R2 without public bucket needed
+    url: `${apiBase}/media/${row.r2_key_final}`,
+    uploadedBy: row.sender_name || 'Guest',
+    source: row.source,
+    event: row.event_key,
+  }))
+
+  return c.json({ photos })
+})
+
+// Public upload — guest submits a photo, goes to pending review queue
+app.post('/api/public/upload', async (c) => {
+  const formData = await c.req.formData()
+  const workspaceId = formData.get('workspaceId') as string
+  const phone = (formData.get('phone') as string) || ''
+  const senderName = (formData.get('senderName') as string) || 'Guest'
+  const eventKey = (formData.get('eventKey') as string) || 'wedding'
+  const file = formData.get('file') as File | null
+
+  if (!workspaceId || !file) return c.json({ error: 'workspaceId and file required' }, 400)
+
+  // Check file size (50MB max)
+  if (file.size > 50 * 1024 * 1024) return c.json({ error: 'File too large (max 50MB)' }, 413)
+
+  // Verify workspace is active
+  const ws = await c.env.DB.prepare(
+    'SELECT id FROM workspaces WHERE id = ? AND active = 1'
+  ).bind(workspaceId).first()
+  if (!ws) return c.json({ error: 'Workspace not found' }, 404)
+
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const fileId = crypto.randomUUID()
+  const r2Key = `workspaces/${workspaceId}/pending/${fileId}.${ext}`
+
+  await c.env.R2_BUCKET.put(r2Key, await file.arrayBuffer(), {
+    httpMetadata: { contentType: file.type || 'image/jpeg' }
+  })
+
+  const submissionId = crypto.randomUUID()
+  const now = new Date().toISOString()
+
+  await c.env.DB.prepare(
+    `INSERT INTO submissions
+       (id, workspace_id, r2_key_pending, status, event_key, sender_phone, sender_name, source, submitted_at)
+     VALUES (?, ?, ?, 'pending', ?, ?, ?, 'direct', ?)`
+  ).bind(submissionId, workspaceId, r2Key, eventKey, phone, senderName, now).run()
+
+  return c.json({ success: true, submissionId })
 })
 
 app.get('/health', (c) => {
@@ -221,21 +324,8 @@ app.post('/api/workspace/config', async (c) => {
 
 // Stats — quick dashboard counts
 app.get('/api/stats', async (c) => {
-  const auth = c.req.header('Authorization')
-  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
-
-  // Dual-auth: detect Supabase JWT or legacy PIN
-  const authType = detectAuthType(auth)
-  let workspaceId = 'mimries-aands-2026' // fallback for PIN auth
-
-  if (authType === 'supabase') {
-    const token = auth.replace('Bearer ', '')
-    const jwtUser = await verifySupabaseJwt(token, c.env.SUPABASE_JWT_SECRET)
-    if (!jwtUser) return c.json({ error: 'Invalid token' }, 401)
-    // Workspace slug comes from the URL path — read from x-workspace header
-    const wsHeader = c.req.header('x-workspace-id')
-    if (wsHeader) workspaceId = wsHeader
-  }
+  const workspaceId = getWorkspaceId(c)
+  if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const guests = await c.env.DB.prepare(
     'SELECT COUNT(*) as count FROM guests WHERE workspace_id = ?'
@@ -260,10 +350,8 @@ app.get('/api/stats', async (c) => {
 
 // Submissions — list
 app.get('/api/submissions', async (c) => {
-  const auth = c.req.header('Authorization')
-  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
-
-  const workspaceId = 'mimries-aands-2026'
+  const workspaceId = getWorkspaceId(c)
+  if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
   const status = c.req.query('status') || 'pending'
 
   let rows;
@@ -282,10 +370,8 @@ app.get('/api/submissions', async (c) => {
 
 // Guests — list
 app.get('/api/guests', async (c) => {
-  const auth = c.req.header('Authorization')
-  if (!auth) return c.json({ error: 'Unauthorized' }, 401)
-
-  const workspaceId = 'mimries-aands-2026'
+  const workspaceId = getWorkspaceId(c)
+  if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const rows = await c.env.DB.prepare(
     'SELECT * FROM guests WHERE workspace_id = ? ORDER BY name ASC'
@@ -318,8 +404,12 @@ async function getConfig(
   return config
 }
 
-// Helper: extract workspace ID from token
-function getWorkspaceId(auth: string | undefined): string | null {
+// Helper: extract workspace ID from token or header
+function getWorkspaceId(c: any): string | null {
+  const ws = c.req.header('x-workspace-id');
+  if (ws) return ws;
+  
+  const auth = c.req.header('Authorization');
   if (!auth) return null
   try {
     const token = auth.replace('Bearer ', '')
@@ -332,8 +422,7 @@ function getWorkspaceId(auth: string | undefined): string | null {
 
 // Upload — admin manual upload (directly approved)
 app.post('/api/upload-manual', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const formData = await c.req.formData()
@@ -370,8 +459,7 @@ app.post('/api/upload-manual', async (c) => {
 
 // Gallery — list approved photos
 app.get('/api/gallery', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const eventTag = c.req.query('event')
@@ -410,8 +498,7 @@ app.get('/api/gallery', async (c) => {
 
 // Gallery — delete photo
 app.delete('/api/gallery/:id', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { id } = c.req.param()
@@ -435,8 +522,7 @@ app.delete('/api/gallery/:id', async (c) => {
 
 // Upload — guest upload (goes to pending review queue)
 app.post('/api/upload-guest', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const formData = await c.req.formData()
@@ -472,8 +558,7 @@ app.post('/api/upload-guest', async (c) => {
 
 // Access logs — log guest access
 app.post('/api/access-logs', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { phone, name } = await c.req.json<{ phone: string; name: string }>()
@@ -488,8 +573,7 @@ app.post('/api/access-logs', async (c) => {
 
 // Workspace config — GET
 app.get('/api/workspace', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const row = await c.env.DB.prepare(
@@ -514,8 +598,7 @@ app.get('/api/workspace', async (c) => {
 
 // Workspace config — PUT (admin only)
 app.put('/api/workspace', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { config, newAdminPin } = await c.req.json<{ config: any, newAdminPin?: string }>()
@@ -590,8 +673,7 @@ async function getUnifiedConfig(db: D1Database, workspaceId: string) {
 
 // Submissions — approve/reject/reset
 app.post('/api/submissions/:id/:action', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { id, action } = c.req.param()
@@ -646,8 +728,7 @@ app.post('/api/submissions/:id/:action', async (c) => {
 
 // Submissions — get media URL for preview
 app.get('/api/submissions/:id/media-url', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { id } = c.req.param()
@@ -688,8 +769,7 @@ app.get('/media/*', async (c) => {
 
 // Guests — CRUD
 app.post('/api/guests', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { name, phone, events, can_upload } = await c.req.json<{
@@ -705,8 +785,7 @@ app.post('/api/guests', async (c) => {
 })
 
 app.put('/api/guests/:id', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { id } = c.req.param()
@@ -722,8 +801,7 @@ app.put('/api/guests/:id', async (c) => {
 })
 
 app.delete('/api/guests/:id', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const { id } = c.req.param()
@@ -736,8 +814,7 @@ app.delete('/api/guests/:id', async (c) => {
 })
 
 app.post('/api/guests/import', async (c) => {
-  const auth = c.req.header('Authorization')
-  const workspaceId = getWorkspaceId(auth)
+  const workspaceId = getWorkspaceId(c)
   if (!workspaceId) return c.json({ error: 'Unauthorized' }, 401)
 
   const guests = await c.req.json<Array<{
