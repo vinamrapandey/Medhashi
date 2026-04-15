@@ -239,40 +239,57 @@ app.post('/api/workspaces/provision', async (c) => {
     return c.json({ error: 'slug and displayName are required' }, 400)
   }
 
-  // Idempotent — if workspace already exists (e.g. retry after partial failure),
-  // return success so onboarding can complete without a second error.
+  // Idempotent — check if workspace already exists
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM workspaces WHERE id = ? LIMIT 1'
-  ).bind(slug).first()
-  if (existing) return c.json({ success: true, workspaceId: slug, displayName, alreadyExists: true })
+    'SELECT id, owner_supabase_id FROM workspaces WHERE id = ? LIMIT 1'
+  ).bind(slug).first<{id: string, owner_supabase_id: string}>()
 
-  const now = new Date().toISOString()
-
-  // Step 1 — Insert workspace row (columns guaranteed to exist in D1 schema)
-  await c.env.DB.prepare(
-    `INSERT INTO workspaces
-       (id, owner_supabase_id, slug, display_name, plan, wedding_date, active, created_at)
-     VALUES (?, ?, ?, ?, 'free', ?, 1, ?)`
-  ).bind(slug, jwtUser.sub ?? '', slug, displayName, body.weddingDate || null, now).run()
+  if (existing) {
+    if (existing.owner_supabase_id !== jwtUser.sub) {
+      return c.json({ error: 'Workspace slug already taken by another user' }, 403)
+    }
+  } else {
+    const now = new Date().toISOString()
+    // Step 1 — Insert workspace row (columns guaranteed to exist in D1 schema)
+    await c.env.DB.prepare(
+      `INSERT INTO workspaces
+         (id, owner_supabase_id, slug, display_name, plan, wedding_date, active, created_at)
+       VALUES (?, ?, ?, ?, 'free', ?, 1, ?)`
+    ).bind(slug, jwtUser.sub ?? '', slug, displayName, body.weddingDate || null, now).run()
+  }
 
   // Step 2 — Store initial config JSON with couple names + events.
-  // Requires ALTER TABLE workspaces ADD COLUMN config TEXT; to have been run in D1.
-  // If the column doesn't exist yet this UPDATE fails silently and workspace still works.
   const EVENT_TITLES: Record<string, string> = {
     wedding: 'Wedding',
     engagement: 'Engagement',
     haldi: 'Haldi & Mehandi',
     sangeet: 'Sangeet',
   }
+  
+  const venueLocation = [body.venue, body.city, body.state].filter(Boolean).join(', ')
+
   const eventObjects = (body.events ?? ['wedding']).map((key: string) => ({
-    key,
+    key: `event-${key}-${Date.now()}`,
     title: EVENT_TITLES[key] ?? (key.charAt(0).toUpperCase() + key.slice(1)),
+    date: body.weddingDate ? new Date(body.weddingDate).toLocaleDateString('en-GB').replace(/\//g, '-') : '',
+    venue: venueLocation || '',
+    googleMapsUrl: ''
   }))
+  
+  // Fetch existing config if any to merge (in case this is a retry and some config was already saved)
+  let existingConfig = {}
+  try {
+    const configRow = await c.env.DB.prepare('SELECT config FROM workspaces WHERE id = ?').bind(slug).first<{config: string}>()
+    if (configRow?.config) existingConfig = JSON.parse(configRow.config)
+  } catch {}
+
   const initialConfig = JSON.stringify({
+    ...existingConfig,
     brideName: body.brideName ?? '',
     groomName: body.groomName ?? '',
     events: eventObjects,
   })
+
   try {
     await c.env.DB.prepare(
       'UPDATE workspaces SET config = ? WHERE id = ?'
@@ -281,7 +298,16 @@ app.post('/api/workspaces/provision', async (c) => {
     // config column not yet added via migration — workspace row is created, config will be empty
   }
 
-  return c.json({ success: true, workspaceId: slug, displayName })
+  return c.json({ success: true, workspaceId: slug, displayName, alreadyExists: !!existing })
+})
+
+// Check workspace slug availability
+app.get('/api/workspaces/check-slug/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM workspaces WHERE id = ? LIMIT 1'
+  ).bind(slug).first()
+  return c.json({ available: !existing })
 })
 
 // Workspace config — save (Supabase JWT, used by manage portal settings page)
@@ -666,6 +692,11 @@ async function getUnifiedConfig(db: D1Database, workspaceId: string) {
     }
   } catch {
     // configurations table may not exist in all environments
+  }
+
+  // Ensure default events exist to prevent UI breakage for legacy or incomplete workspaces
+  if (!unified.events || !Array.isArray(unified.events) || unified.events.length === 0) {
+    unified.events = [{ key: 'wedding', title: 'Wedding' }]
   }
 
   return unified
