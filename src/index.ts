@@ -6,6 +6,7 @@ type Env = {
   R2_BUCKET: R2Bucket
   ENVIRONMENT: string
   SUPABASE_JWT_SECRET: string
+  TELEGRAM_BOT_TOKEN: string  // shared mimries_bot — set via wrangler secret put
 }
 
 // ── Auth helpers ──────────────────────────────────────────
@@ -231,7 +232,13 @@ app.post('/api/workspaces/provision', async (c) => {
     ownerEmail?: string
     brideName?: string
     groomName?: string
+    brideNameHindi?: string
+    groomNameHindi?: string
+    cityHindi?: string
     supabaseWorkspaceId?: string
+    venue?: string
+    city?: string
+    state?: string
   }>()
 
   const { slug, displayName } = body
@@ -287,6 +294,9 @@ app.post('/api/workspaces/provision', async (c) => {
     ...existingConfig,
     brideName: body.brideName ?? '',
     groomName: body.groomName ?? '',
+    brideNameHindi: body.brideNameHindi ?? '',
+    groomNameHindi: body.groomNameHindi ?? '',
+    cityHindi: body.cityHindi ?? '',
     events: eventObjects,
   })
 
@@ -463,23 +473,31 @@ app.post('/api/upload-manual', async (c) => {
   const ext = file.type.startsWith('video/') ? 'mp4' : 'jpg'
   const r2Key = `workspaces/${workspaceId}/gallery/${eventTag}/${id}.${ext}`
 
-  const arrayBuffer = await file.arrayBuffer()
-  await c.env.R2_BUCKET.put(r2Key, arrayBuffer, {
-    httpMetadata: { contentType: file.type }
-  })
+  // Upload to R2 first — this is the critical step
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    await c.env.R2_BUCKET.put(r2Key, arrayBuffer, {
+      httpMetadata: { contentType: file.type }
+    })
+  } catch (e) {
+    return c.json({ error: 'R2 upload failed' }, 500)
+  }
 
-  await c.env.DB.prepare(`
-    INSERT INTO submissions
-      (id, workspace_id, sender_name, sender_phone, event_tag,
-       r2_key_final, media_type, file_size, status, reviewed_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', datetime('now'))
-  `).bind(
-    id, workspaceId, senderName, senderPhone, eventTag,
-    r2Key, file.type.startsWith('video/') ? 'video' : 'image',
-    file.size
-  ).run()
+  // Track in DB — non-critical, use correct column names from schema
+  try {
+    await c.env.DB.prepare(`
+      INSERT INTO submissions
+        (id, workspace_id, sender_name, sender_phone, event_key,
+         r2_key_final, status, reviewed_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'approved', datetime('now'))
+    `).bind(id, workspaceId, senderName, senderPhone, eventTag, r2Key).run()
+  } catch {
+    // DB tracking failed — upload still succeeded, continue
+  }
 
-  const publicUrl = `${await getR2Base(c.env.DB, workspaceId)}/${r2Key}`
+  // Always use Worker's own /media/ proxy — no dependency on configurations table
+  const origin = new URL(c.req.url).origin
+  const publicUrl = `${origin}/media/${r2Key}`
   return c.json({ success: true, id, url: publicUrl })
 })
 
@@ -1053,6 +1071,194 @@ app.post('/telegram/webhook/:workspaceId', async (c) => {
         })
       }
     )
+  }
+
+  return c.json({ ok: true })
+})
+
+// ── Shared mimries_bot — QR-based workspace routing ──────────────────────────
+
+// Generate a short QR token for a specific workspace+event (Supabase JWT required)
+app.post('/api/telegram/token', async (c) => {
+  const auth = c.req.header('Authorization')
+  if (detectAuthType(auth) !== 'supabase' || !auth) {
+    return c.json({ error: 'Unauthorized — Supabase JWT required' }, 401)
+  }
+  const jwtUser = await verifySupabaseJwt(auth.replace('Bearer ', ''), c.env.SUPABASE_JWT_SECRET)
+  if (!jwtUser) return c.json({ error: 'Invalid or expired token' }, 401)
+
+  const workspaceId = c.req.header('x-workspace-id')
+  if (!workspaceId) return c.json({ error: 'x-workspace-id header required' }, 400)
+
+  // Verify ownership
+  const ws = await c.env.DB.prepare(
+    'SELECT id, display_name FROM workspaces WHERE id = ? AND owner_supabase_id = ?'
+  ).bind(workspaceId, jwtUser.sub ?? '').first<{ id: string; display_name: string }>()
+  if (!ws) return c.json({ error: 'Workspace not found or unauthorized' }, 403)
+
+  const { eventKey } = await c.req.json<{ eventKey: string }>()
+  if (!eventKey) return c.json({ error: 'eventKey required' }, 400)
+
+  // Generate a fresh 12-char token — multiple can coexist for the same event
+  const token = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+
+  await c.env.DB.prepare(
+    'INSERT INTO telegram_tokens (token, workspace_id, event_key, created_at) VALUES (?, ?, ?, datetime(\'now\'))'
+  ).bind(token, workspaceId, eventKey).run()
+
+  const deepLink = `https://t.me/mimries_bot?start=${token}`
+  return c.json({ success: true, token, deepLink })
+})
+
+// Webhook — single endpoint for the shared mimries_bot
+// Register once: POST https://api.telegram.org/bot{TOKEN}/setWebhook
+//   { "url": "https://mimries-api.mimries.workers.dev/api/telegram/webhook" }
+app.post('/api/telegram/webhook', async (c) => {
+  const botToken = c.env.TELEGRAM_BOT_TOKEN
+  if (!botToken) return c.json({ ok: true }) // secret not yet set — ignore silently
+
+  const body = await c.req.json<any>()
+  const message = body?.message
+  if (!message) return c.json({ ok: true })
+
+  const chatId = String(message.chat?.id || '')
+  const senderName = [message.from?.first_name, message.from?.last_name]
+    .filter(Boolean).join(' ') || 'Guest'
+
+  // Helper: send a Telegram message back to the user
+  async function reply(text: string) {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    })
+  }
+
+  // ── /start TOKEN — QR deep link entry point ──
+  if (message.text?.startsWith('/start')) {
+    const qrToken = message.text.slice(6).trim() // everything after "/start "
+
+    if (!qrToken) {
+      await reply('Welcome to Mimries! 💍\n\nPlease scan the QR code at the event to connect to the right wedding album, then send your photos!')
+      return c.json({ ok: true })
+    }
+
+    const tokenRow = await c.env.DB.prepare(
+      'SELECT workspace_id, event_key FROM telegram_tokens WHERE token = ?'
+    ).bind(qrToken).first<{ workspace_id: string; event_key: string }>()
+
+    if (!tokenRow) {
+      await reply('That QR code is not recognised. Please ask the couple for a fresh QR code. 🙏')
+      return c.json({ ok: true })
+    }
+
+    // Create/replace session (48-hour window)
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+    await c.env.DB.prepare(
+      'INSERT OR REPLACE INTO telegram_sessions (chat_id, workspace_id, event_key, expires_at, created_at) VALUES (?, ?, ?, ?, datetime(\'now\'))'
+    ).bind(chatId, tokenRow.workspace_id, tokenRow.event_key, expiresAt).run()
+
+    // Friendly welcome message with couple name + event title
+    let coupleName = tokenRow.workspace_id
+    let eventTitle = tokenRow.event_key
+    try {
+      const wsRow = await c.env.DB.prepare(
+        'SELECT display_name, config FROM workspaces WHERE id = ?'
+      ).bind(tokenRow.workspace_id).first<{ display_name: string; config: string }>()
+      if (wsRow) {
+        coupleName = wsRow.display_name
+        const cfg = JSON.parse(wsRow.config || '{}')
+        const ev = (cfg.events as any[] | undefined)?.find((e) => e.key === tokenRow.event_key)
+        if (ev?.title) eventTitle = ev.title
+      }
+    } catch {}
+
+    await reply(`You're connected to <b>${coupleName}</b>'s wedding! 🎊\n\n📸 Album: <b>${eventTitle}</b>\n\nJust send your photos or videos now — they'll appear in the gallery after review.`)
+    return c.json({ ok: true })
+  }
+
+  // ── Photo / video / document ──
+  const photos = message.photo as any[] | undefined
+  const video = message.video as any | undefined
+  const document = message.document as any | undefined
+
+  if (photos || video || document) {
+    const session = await c.env.DB.prepare(
+      'SELECT workspace_id, event_key, expires_at FROM telegram_sessions WHERE chat_id = ?'
+    ).bind(chatId).first<{ workspace_id: string; event_key: string; expires_at: string }>()
+
+    if (!session || new Date(session.expires_at) < new Date()) {
+      if (session) {
+        await c.env.DB.prepare('DELETE FROM telegram_sessions WHERE chat_id = ?').bind(chatId).run()
+      }
+      await reply('Your session has expired or you haven\'t connected yet.\n\nPlease scan the QR code at the event to get started. 🙏')
+      return c.json({ ok: true })
+    }
+
+    // Resolve Telegram file_id
+    let fileId: string | null = null
+    let contentType = 'image/jpeg'
+    let ext = 'jpg'
+
+    if (photos) {
+      fileId = photos[photos.length - 1].file_id // largest resolution
+    } else if (video) {
+      fileId = video.file_id
+      contentType = 'video/mp4'
+      ext = 'mp4'
+    } else if (document?.mime_type?.startsWith('image/')) {
+      fileId = document.file_id
+      ext = (document.file_name as string | undefined)?.split('.').pop() ?? 'jpg'
+    }
+
+    if (!fileId) return c.json({ ok: true })
+
+    try {
+      // Get download URL from Telegram
+      const infoRes = await fetch(
+        `https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`
+      )
+      const info = await infoRes.json<any>()
+      const filePath: string = info?.result?.file_path
+      if (!filePath) throw new Error('no file path')
+
+      const fileRes = await fetch(
+        `https://api.telegram.org/file/bot${botToken}/${filePath}`
+      )
+
+      const submId = crypto.randomUUID()
+      const r2Key = `workspaces/${session.workspace_id}/pending/${session.event_key}/${submId}.${ext}`
+
+      await c.env.R2_BUCKET.put(r2Key, fileRes.body as any, {
+        httpMetadata: { contentType },
+      })
+
+      await c.env.DB.prepare(
+        `INSERT INTO submissions
+           (id, workspace_id, sender_name, sender_phone, event_key,
+            r2_key_pending, status, source, submitted_at)
+         VALUES (?, ?, ?, '', ?, ?, 'pending', 'telegram', datetime('now'))`
+      ).bind(submId, session.workspace_id, senderName, session.event_key, r2Key).run()
+
+      await reply(`✅ Received! Your photo will appear in the <b>${session.event_key}</b> gallery after review.\n\nSend more anytime!`)
+    } catch {
+      await reply('Something went wrong uploading your photo. Please try again. 🙏')
+    }
+
+    return c.json({ ok: true })
+  }
+
+  // ── Any other text ──
+  if (message.text) {
+    const session = await c.env.DB.prepare(
+      "SELECT event_key FROM telegram_sessions WHERE chat_id = ? AND expires_at > datetime('now')"
+    ).bind(chatId).first<{ event_key: string }>()
+
+    if (session) {
+      await reply(`You're all set for the <b>${session.event_key}</b> album! Just send your photos directly — no need to type anything. 📸`)
+    } else {
+      await reply('Please scan the QR code at the event to get started, then send your photos! 📸')
+    }
   }
 
   return c.json({ ok: true })
