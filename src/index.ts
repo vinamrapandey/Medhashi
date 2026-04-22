@@ -6,7 +6,9 @@ type Env = {
   R2_BUCKET: R2Bucket
   ENVIRONMENT: string
   SUPABASE_JWT_SECRET: string
-  TELEGRAM_BOT_TOKEN: string  // shared mimries_bot — set via wrangler secret put
+  TELEGRAM_BOT_TOKEN: string         // wrangler secret put TELEGRAM_BOT_TOKEN
+  TELEGRAM_WEBHOOK_SECRET: string    // wrangler secret put TELEGRAM_WEBHOOK_SECRET
+  TELEGRAM_ADMIN_CHAT_ID: string     // wrangler secret put TELEGRAM_ADMIN_CHAT_ID
 }
 
 // ── Auth helpers ──────────────────────────────────────────
@@ -1112,53 +1114,203 @@ app.post('/api/telegram/token', async (c) => {
 
 // Webhook — single endpoint for the shared mimries_bot
 // Register once: POST https://api.telegram.org/bot{TOKEN}/setWebhook
-//   { "url": "https://mimries-api.mimries.workers.dev/api/telegram/webhook" }
+//   { "url": "https://mimries-api.mimries.workers.dev/api/telegram/webhook",
+//     "allowed_updates": ["message", "callback_query"] }
+//
+// D1 migration required before deploying:
+//   ALTER TABLE telegram_sessions ADD COLUMN last_activity_at TEXT;
+//   UPDATE telegram_sessions SET last_activity_at = created_at WHERE last_activity_at IS NULL;
 app.post('/api/telegram/webhook', async (c) => {
   const botToken = c.env.TELEGRAM_BOT_TOKEN
-  if (!botToken) return c.json({ ok: true }) // secret not yet set — ignore silently
+  if (!botToken) return c.json({ ok: true })
+
+  // Verify the request is genuinely from Telegram
+  const incomingSecret = c.req.header('X-Telegram-Bot-Api-Secret-Token') ?? ''
+  if (c.env.TELEGRAM_WEBHOOK_SECRET && incomingSecret !== c.env.TELEGRAM_WEBHOOK_SECRET) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
 
   const body = await c.req.json<any>()
   const message = body?.message
-  if (!message) return c.json({ ok: true })
+  const callbackQuery = body?.callback_query
 
-  const chatId = String(message.chat?.id || '')
-  const senderName = [message.from?.first_name, message.from?.last_name]
-    .filter(Boolean).join(' ') || 'Guest'
+  // ── Shared helpers ──────────────────────────────────────────────────────────
 
-  // Helper: send a Telegram message back to the user
-  async function reply(text: string) {
+  async function sendMsg(toChatId: string, text: string, extra?: Record<string, unknown>) {
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+      body: JSON.stringify({ chat_id: toChatId, text, parse_mode: 'HTML', ...extra }),
     })
   }
 
-  // ── /start TOKEN — QR deep link entry point ──
-  if (message.text?.startsWith('/start')) {
-    const qrToken = message.text.slice(6).trim() // everything after "/start "
+  // Returns true if last_activity_at is null or older than 24 hours
+  function isStale(lastActivityAt: string | null): boolean {
+    if (!lastActivityAt) return true
+    return Date.now() - new Date(lastActivityAt).getTime() > 24 * 60 * 60 * 1000
+  }
 
-    if (!qrToken) {
-      await reply('Welcome to Mimries! 💍\n\nPlease scan the QR code at the event to connect to the right wedding album, then send your photos!')
+  // Bump last_activity_at to now (called after every successful upload)
+  async function touchSession(toChatId: string) {
+    await c.env.DB.prepare(
+      "UPDATE telegram_sessions SET last_activity_at = datetime('now') WHERE chat_id = ?"
+    ).bind(toChatId).run()
+  }
+
+  // Fetch events for workspace and show an inline keyboard asking which event
+  async function askWhichEvent(toChatId: string, workspaceId: string, displayName: string) {
+    const eventsRes = await c.env.DB.prepare(
+      'SELECT event_key, name FROM events WHERE workspace_id = ? ORDER BY display_order'
+    ).bind(workspaceId).all<{ event_key: string; name: string }>()
+
+    const events = eventsRes.results
+    if (!events.length) {
+      await sendMsg(toChatId, 'No events are set up for this wedding yet. Please contact the couple. 🙏')
+      return
+    }
+
+    // Build rows of 2 buttons each
+    const rows: { text: string; callback_data: string }[][] = []
+    for (let i = 0; i < events.length; i += 2) {
+      rows.push(
+        events.slice(i, i + 2).map(ev => ({
+          text: ev.name,
+          callback_data: `evt:${ev.event_key}`,
+        }))
+      )
+    }
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: toChatId,
+        text: `🎉 <b>${displayName}</b>\n\nWhich event are your photos from?`,
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: rows },
+      }),
+    })
+  }
+
+  // ── CALLBACK QUERY — guest tapped an event button ───────────────────────────
+  if (callbackQuery) {
+    const cbChatId = String(callbackQuery.message?.chat?.id ?? '')
+    const cbData: string = callbackQuery.data ?? ''
+    const cbMsgId: number = callbackQuery.message?.message_id
+
+    if (cbData.startsWith('evt:')) {
+      const chosenKey = cbData.slice(4)
+
+      const session = await c.env.DB.prepare(
+        'SELECT workspace_id FROM telegram_sessions WHERE chat_id = ?'
+      ).bind(cbChatId).first<{ workspace_id: string }>()
+
+      // Session gone — tell them to re-scan
+      if (!session) {
+        await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callback_query_id: callbackQuery.id,
+            text: 'Session expired — please scan the QR code again.',
+            show_alert: true,
+          }),
+        })
+        return c.json({ ok: true })
+      }
+
+      // Get event name so we can confirm it in the message
+      const ev = await c.env.DB.prepare(
+        'SELECT name FROM events WHERE workspace_id = ? AND event_key = ?'
+      ).bind(session.workspace_id, chosenKey).first<{ name: string }>()
+
+      // Persist chosen event and refresh activity timestamp
+      await c.env.DB.prepare(
+        "UPDATE telegram_sessions SET event_key = ?, last_activity_at = datetime('now') WHERE chat_id = ?"
+      ).bind(chosenKey, cbChatId).run()
+
+      // Dismiss the spinner on the button
+      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: callbackQuery.id }),
+      })
+
+      // Replace the keyboard message with a confirmation
+      await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: cbChatId,
+          message_id: cbMsgId,
+          text: `✅ <b>${ev?.name ?? chosenKey}</b> selected!\n\nSend your photos now — you can send as many as you like. 📸`,
+          parse_mode: 'HTML',
+        }),
+      })
+    }
+
+    return c.json({ ok: true })
+  }
+
+  // ── MESSAGE ─────────────────────────────────────────────────────────────────
+  if (!message) return c.json({ ok: true })
+
+  const chatId = String(message.chat?.id ?? '')
+  const senderName = [message.from?.first_name, message.from?.last_name]
+    .filter(Boolean).join(' ') || 'Guest'
+
+  async function reply(text: string, extra?: Record<string, unknown>) {
+    await sendMsg(chatId, text, extra)
+  }
+
+  // ── /start — QR deep-link entry point ──────────────────────────────────────
+  if (message.text?.startsWith('/start')) {
+    const payload = (message.text as string).slice(6).trim()
+
+    if (!payload) {
+      await reply('Welcome to Mimries! 💍\n\nPlease scan the QR code at the wedding to link your photos to the right album.')
       return c.json({ ok: true })
     }
 
+    // ── Workspace-level QR: payload = "ws_{slug}" ──
+    if (payload.startsWith('ws_')) {
+      const slug = payload.slice(3)
+      const ws = await c.env.DB.prepare(
+        'SELECT id, display_name FROM workspaces WHERE slug = ? AND active = 1'
+      ).bind(slug).first<{ id: string; display_name: string }>()
+
+      if (!ws) {
+        await reply('That QR code is not recognised. Please ask the couple for a fresh one. 🙏')
+        return c.json({ ok: true })
+      }
+
+      // Upsert session: workspace known, event_key NULL until guest picks one
+      await c.env.DB.prepare(
+        `INSERT OR REPLACE INTO telegram_sessions
+           (chat_id, workspace_id, event_key, last_activity_at, created_at)
+         VALUES (?, ?, NULL, datetime('now'), datetime('now'))`
+      ).bind(chatId, ws.id).run()
+
+      await askWhichEvent(chatId, ws.id, ws.display_name)
+      return c.json({ ok: true })
+    }
+
+    // ── Legacy per-event token (old QR codes keep working) ──
     const tokenRow = await c.env.DB.prepare(
       'SELECT workspace_id, event_key FROM telegram_tokens WHERE token = ?'
-    ).bind(qrToken).first<{ workspace_id: string; event_key: string }>()
+    ).bind(payload).first<{ workspace_id: string; event_key: string }>()
 
     if (!tokenRow) {
-      await reply('That QR code is not recognised. Please ask the couple for a fresh QR code. 🙏')
+      await reply('That QR code is not recognised. Please ask the couple for a fresh one. 🙏')
       return c.json({ ok: true })
     }
 
-    // Create/replace session (48-hour window)
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
     await c.env.DB.prepare(
-      'INSERT OR REPLACE INTO telegram_sessions (chat_id, workspace_id, event_key, expires_at, created_at) VALUES (?, ?, ?, ?, datetime(\'now\'))'
-    ).bind(chatId, tokenRow.workspace_id, tokenRow.event_key, expiresAt).run()
+      `INSERT OR REPLACE INTO telegram_sessions
+         (chat_id, workspace_id, event_key, last_activity_at, created_at)
+       VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+    ).bind(chatId, tokenRow.workspace_id, tokenRow.event_key).run()
 
-    // Friendly welcome message with couple name + event title
     let coupleName = tokenRow.workspace_id
     let eventTitle = tokenRow.event_key
     try {
@@ -1168,44 +1320,67 @@ app.post('/api/telegram/webhook', async (c) => {
       if (wsRow) {
         coupleName = wsRow.display_name
         const cfg = JSON.parse(wsRow.config || '{}')
-        const ev = (cfg.events as any[] | undefined)?.find((e) => e.key === tokenRow.event_key)
+        const ev = (cfg.events as any[] | undefined)?.find(e => e.key === tokenRow.event_key)
         if (ev?.title) eventTitle = ev.title
       }
     } catch {}
 
-    await reply(`You're connected to <b>${coupleName}</b>'s wedding! 🎊\n\n📸 Album: <b>${eventTitle}</b>\n\nJust send your photos or videos now — they'll appear in the gallery after review.`)
+    await reply(`Connected to <b>${coupleName}</b>'s wedding! 🎊\n\n📸 Album: <b>${eventTitle}</b>\n\nSend your photos or videos now — they'll appear in the gallery after review.`)
     return c.json({ ok: true })
   }
 
-  // ── Photo / video / document ──
+  // ── Photo / video / document ────────────────────────────────────────────────
   const photos = message.photo as any[] | undefined
   const video = message.video as any | undefined
   const document = message.document as any | undefined
 
   if (photos || video || document) {
     const session = await c.env.DB.prepare(
-      'SELECT workspace_id, event_key, expires_at FROM telegram_sessions WHERE chat_id = ?'
-    ).bind(chatId).first<{ workspace_id: string; event_key: string; expires_at: string }>()
+      'SELECT workspace_id, event_key, last_activity_at FROM telegram_sessions WHERE chat_id = ?'
+    ).bind(chatId).first<{
+      workspace_id: string
+      event_key: string | null
+      last_activity_at: string | null
+    }>()
 
-    if (!session || new Date(session.expires_at) < new Date()) {
-      if (session) {
-        await c.env.DB.prepare('DELETE FROM telegram_sessions WHERE chat_id = ?').bind(chatId).run()
-      }
-      await reply('Your session has expired or you haven\'t connected yet.\n\nPlease scan the QR code at the event to get started. 🙏')
+    // Never scanned a QR
+    if (!session) {
+      await reply('Please scan the QR code at the event to get started first! 📸')
       return c.json({ ok: true })
     }
 
-    // Resolve Telegram file_id
+    // 24 h inactivity → keep workspace, clear event, re-ask
+    if (isStale(session.last_activity_at)) {
+      await c.env.DB.prepare(
+        "UPDATE telegram_sessions SET event_key = NULL, last_activity_at = datetime('now') WHERE chat_id = ?"
+      ).bind(chatId).run()
+      const ws = await c.env.DB.prepare(
+        'SELECT display_name FROM workspaces WHERE id = ?'
+      ).bind(session.workspace_id).first<{ display_name: string }>()
+      await reply("It's been a while! 👋 Which event are these photos for?")
+      await askWhichEvent(chatId, session.workspace_id, ws?.display_name ?? '')
+      return c.json({ ok: true })
+    }
+
+    // Workspace QR flow: guest hasn't picked an event yet
+    if (!session.event_key) {
+      const ws = await c.env.DB.prepare(
+        'SELECT display_name FROM workspaces WHERE id = ?'
+      ).bind(session.workspace_id).first<{ display_name: string }>()
+      await reply('☝️ Please pick an event first!')
+      await askWhichEvent(chatId, session.workspace_id, ws?.display_name ?? '')
+      return c.json({ ok: true })
+    }
+
+    // Resolve file
     let fileId: string | null = null
     let contentType = 'image/jpeg'
     let ext = 'jpg'
 
     if (photos) {
-      fileId = photos[photos.length - 1].file_id // largest resolution
+      fileId = photos[photos.length - 1].file_id
     } else if (video) {
-      fileId = video.file_id
-      contentType = 'video/mp4'
-      ext = 'mp4'
+      fileId = video.file_id; contentType = 'video/mp4'; ext = 'mp4'
     } else if (document?.mime_type?.startsWith('image/')) {
       fileId = document.file_id
       ext = (document.file_name as string | undefined)?.split('.').pop() ?? 'jpg'
@@ -1214,25 +1389,16 @@ app.post('/api/telegram/webhook', async (c) => {
     if (!fileId) return c.json({ ok: true })
 
     try {
-      // Get download URL from Telegram
-      const infoRes = await fetch(
-        `https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`
-      )
+      const infoRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`)
       const info = await infoRes.json<any>()
       const filePath: string = info?.result?.file_path
       if (!filePath) throw new Error('no file path')
 
-      const fileRes = await fetch(
-        `https://api.telegram.org/file/bot${botToken}/${filePath}`
-      )
-
+      const fileRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`)
       const submId = crypto.randomUUID()
       const r2Key = `workspaces/${session.workspace_id}/pending/${session.event_key}/${submId}.${ext}`
 
-      await c.env.R2_BUCKET.put(r2Key, fileRes.body as any, {
-        httpMetadata: { contentType },
-      })
-
+      await c.env.R2_BUCKET.put(r2Key, fileRes.body as any, { httpMetadata: { contentType } })
       await c.env.DB.prepare(
         `INSERT INTO submissions
            (id, workspace_id, sender_name, sender_phone, event_key,
@@ -1240,7 +1406,18 @@ app.post('/api/telegram/webhook', async (c) => {
          VALUES (?, ?, ?, '', ?, ?, 'pending', 'telegram', datetime('now'))`
       ).bind(submId, session.workspace_id, senderName, session.event_key, r2Key).run()
 
+      // Refresh activity on every successful upload
+      await touchSession(chatId)
+
       await reply(`✅ Received! Your photo will appear in the <b>${session.event_key}</b> gallery after review.\n\nSend more anytime!`)
+
+      // Notify admin
+      if (c.env.TELEGRAM_ADMIN_CHAT_ID) {
+        await sendMsg(
+          c.env.TELEGRAM_ADMIN_CHAT_ID,
+          `📸 New photo from <b>${senderName}</b> · <b>${session.event_key}</b>\nReview: https://manage.mimries.com`,
+        )
+      }
     } catch {
       await reply('Something went wrong uploading your photo. Please try again. 🙏')
     }
@@ -1248,17 +1425,44 @@ app.post('/api/telegram/webhook', async (c) => {
     return c.json({ ok: true })
   }
 
-  // ── Any other text ──
+  // ── Any other text ──────────────────────────────────────────────────────────
   if (message.text) {
     const session = await c.env.DB.prepare(
-      "SELECT event_key FROM telegram_sessions WHERE chat_id = ? AND expires_at > datetime('now')"
-    ).bind(chatId).first<{ event_key: string }>()
+      'SELECT workspace_id, event_key, last_activity_at FROM telegram_sessions WHERE chat_id = ?'
+    ).bind(chatId).first<{
+      workspace_id: string
+      event_key: string | null
+      last_activity_at: string | null
+    }>()
 
-    if (session) {
-      await reply(`You're all set for the <b>${session.event_key}</b> album! Just send your photos directly — no need to type anything. 📸`)
-    } else {
-      await reply('Please scan the QR code at the event to get started, then send your photos! 📸')
+    if (!session) {
+      await reply('Please scan the QR code at the event to get started! 📸')
+      return c.json({ ok: true })
     }
+
+    // 24 h stale → re-ask event before they send anything
+    if (isStale(session.last_activity_at)) {
+      await c.env.DB.prepare(
+        "UPDATE telegram_sessions SET event_key = NULL, last_activity_at = datetime('now') WHERE chat_id = ?"
+      ).bind(chatId).run()
+      const ws = await c.env.DB.prepare(
+        'SELECT display_name FROM workspaces WHERE id = ?'
+      ).bind(session.workspace_id).first<{ display_name: string }>()
+      await reply("It's been a while! 👋 Which event are you sending photos for?")
+      await askWhichEvent(chatId, session.workspace_id, ws?.display_name ?? '')
+      return c.json({ ok: true })
+    }
+
+    if (!session.event_key) {
+      const ws = await c.env.DB.prepare(
+        'SELECT display_name FROM workspaces WHERE id = ?'
+      ).bind(session.workspace_id).first<{ display_name: string }>()
+      await reply('☝️ Please pick an event first!')
+      await askWhichEvent(chatId, session.workspace_id, ws?.display_name ?? '')
+      return c.json({ ok: true })
+    }
+
+    await reply(`You're all set for the <b>${session.event_key}</b> album! 📸 Just send your photos — no need to type anything.`)
   }
 
   return c.json({ ok: true })
