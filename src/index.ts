@@ -1509,6 +1509,10 @@ app.post('/api/telegram/webhook', async (c) => {
 
           await reply(`✅ Connected to <b>${codeMatch.displayName}</b>'s wedding!\n\n📸 Album: <b>${codeMatch.eventTitle}</b>\n\nSend your photos or videos now — they'll appear in the gallery after review. 🎊`)
           return c.json({ ok: true })
+        } else {
+          // It looked like a code, but wasn't found
+          await reply(`Oops, I couldn't find an event with the code <b>${maybeCode}</b>.\n\nPlease check the code and try again! 📸`)
+          return c.json({ ok: true })
         }
       }
     }
