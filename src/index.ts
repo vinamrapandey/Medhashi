@@ -155,6 +155,149 @@ app.post('/api/public/upload', async (c) => {
   return c.json({ success: true, submissionId })
 })
 
+// ── Telegram Bot Webhook ────────────────────────────────────────────────
+app.post('/api/telegram/webhook', async (c) => {
+  // 1. Verify Telegram Webhook Secret
+  const secret = c.req.header('X-Telegram-Bot-Api-Secret-Token')
+  if (c.env.TELEGRAM_WEBHOOK_SECRET && secret !== c.env.TELEGRAM_WEBHOOK_SECRET) {
+    return c.text('Unauthorized', 401)
+  }
+
+  const update = await c.req.json() as any
+  
+  if (!update.message) return c.text('OK')
+
+  const chatId = update.message.chat.id
+  const text = update.message.text
+  const fromName = update.message.from?.first_name || 'Guest'
+
+  // Handle text messages (/start, manual event codes, or chatting)
+  if (text) {
+    let eventCode = '';
+    
+    if (text.startsWith('/start ')) {
+      eventCode = text.split(' ')[1];
+    } else if (text === '/start') {
+      await sendTelegramMessage(c.env.TELEGRAM_BOT_TOKEN, chatId, "Welcome! 👋\n\nPlease reply with the 6-character Event Code to start uploading photos. (Or simply scan the QR code at the event).")
+      return c.text('OK')
+    } else {
+      // Treat any other text as a potential manual event code entry
+      eventCode = text.trim();
+    }
+
+    // Attempt to match the event code
+    const rows = await c.env.DB.prepare(`
+      SELECT id as workspace_id, display_name, value as event_obj
+      FROM workspaces, json_each(workspaces.config, '$.events')
+      WHERE json_extract(value, '$.eventCode') = ?
+      LIMIT 1
+    `).bind(eventCode).all()
+
+    if (rows.results.length > 0) {
+      const ws = rows.results[0] as any
+      const eventObj = JSON.parse(ws.event_obj)
+
+      // Save session
+      await c.env.DB.prepare(`
+        INSERT INTO telegram_sessions (chat_id, workspace_id, event_key, sender_name, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(chat_id) DO UPDATE SET 
+          workspace_id = excluded.workspace_id,
+          event_key = excluded.event_key,
+          updated_at = excluded.updated_at
+      `).bind(chatId.toString(), ws.workspace_id, eventObj.key, fromName).run()
+
+      await sendTelegramMessage(
+        c.env.TELEGRAM_BOT_TOKEN, 
+        chatId, 
+        `📸 Welcome to ${ws.display_name}'s ${eventObj.title}!\n\nYou can now send your photos here, and they will be added directly to the event gallery for review. Send them one by one or as a group!`
+      )
+      return c.text('OK')
+    } else {
+      // If the code wasn't found
+      if (text.startsWith('/start ')) {
+        await sendTelegramMessage(c.env.TELEGRAM_BOT_TOKEN, chatId, "Sorry, we couldn't find an event with that code. Please check with the couple or type the code again.")
+        return c.text('OK')
+      }
+      
+      // If it was just regular text, check if they already have a session
+      const session = await c.env.DB.prepare('SELECT event_key FROM telegram_sessions WHERE chat_id = ?').bind(chatId.toString()).first()
+      if (!session) {
+        await sendTelegramMessage(c.env.TELEGRAM_BOT_TOKEN, chatId, "Oops, I didn't recognize that event code.\n\nPlease type the exact Event Code, or scan the QR code at the event.")
+        return c.text('OK')
+      } else {
+        // They have a session but sent text. We can ignore or remind them to send photos.
+        // Returning OK prevents spamming if they are chatting in a group or sending captions.
+        return c.text('OK')
+      }
+    }
+  }
+
+  // Handle Photos
+  if (update.message.photo) {
+    // Get highest resolution photo (last in array)
+    const photoArray = update.message.photo
+    const photo = photoArray[photoArray.length - 1]
+    
+    // Find session
+    const session = await c.env.DB.prepare(
+      'SELECT workspace_id, event_key FROM telegram_sessions WHERE chat_id = ?'
+    ).bind(chatId.toString()).first<{ workspace_id: string, event_key: string }>()
+
+    if (!session) {
+      await sendTelegramMessage(c.env.TELEGRAM_BOT_TOKEN, chatId, "Please scan the QR code at the event first before sending photos!")
+      return c.text('OK')
+    }
+
+    // Download photo
+    const fileRes = await fetch(`https://api.telegram.org/bot${c.env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${photo.file_id}`)
+    const fileData = await fileRes.json() as any
+    if (!fileData.ok) return c.text('OK')
+
+    const fileUrl = `https://api.telegram.org/file/bot${c.env.TELEGRAM_BOT_TOKEN}/${fileData.result.file_path}`
+    const imgRes = await fetch(fileUrl)
+    if (!imgRes.ok) return c.text('OK')
+
+    const arrayBuffer = await imgRes.arrayBuffer()
+    const id = crypto.randomUUID()
+    const r2Key = `workspaces/${session.workspace_id}/pending/${id}.jpg`
+
+    // Upload to R2
+    await c.env.R2_BUCKET.put(r2Key, arrayBuffer, {
+      httpMetadata: { contentType: 'image/jpeg' }
+    })
+
+    // Insert into submissions
+    const now = new Date().toISOString()
+    await c.env.DB.prepare(`
+      INSERT INTO submissions
+        (id, workspace_id, r2_key_pending, status, event_key, sender_phone, sender_name, source, submitted_at)
+      VALUES (?, ?, ?, 'pending', ?, ?, ?, 'telegram', ?)
+    `).bind(
+      id, session.workspace_id, r2Key, session.event_key, 'telegram', fromName, now
+    ).run()
+
+    // Optionally we could send a reaction or a reply here. 
+    // To avoid spamming on media groups, we just return OK.
+    return c.text('OK')
+  }
+
+  if (update.message.video || update.message.document) {
+    await sendTelegramMessage(c.env.TELEGRAM_BOT_TOKEN, chatId, "Video and document uploads are not supported yet via Telegram. Please use the website!")
+  }
+
+  return c.text('OK')
+})
+
+async function sendTelegramMessage(token: string, chatId: string, text: string) {
+  if (!token) return;
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text })
+  })
+}
+
 app.get('/health', (c) => {
   return c.json({ 
     status: 'ok', 
@@ -1157,13 +1300,51 @@ app.post('/api/telegram/webhook', async (c) => {
     ).bind(toChatId).run()
   }
 
-  // Fetch events for workspace and show an inline keyboard asking which event
-  async function askWhichEvent(toChatId: string, workspaceId: string, displayName: string) {
-    const eventsRes = await c.env.DB.prepare(
-      'SELECT event_key, name FROM events WHERE workspace_id = ? ORDER BY display_order'
-    ).bind(workspaceId).all<{ event_key: string; name: string }>()
+  // Find workspace and event key by 6-char event code
+  async function findEventByCode(code: string) {
+    const cleanCode = code.toUpperCase().trim().replace(/[^A-Z0-9]/g, "")
+    if (cleanCode.length !== 6) return null
 
-    const events = eventsRes.results
+    const wsRows = await c.env.DB.prepare(
+      "SELECT id, display_name, config FROM workspaces WHERE active = 1 AND config LIKE ?"
+    ).bind(`%"eventCode":"${cleanCode}"%`).all<{ id: string; display_name: string; config: string }>()
+
+    for (const ws of wsRows.results) {
+      try {
+        const cfg = JSON.parse(ws.config || '{}')
+        if (Array.isArray(cfg.events)) {
+          const ev = cfg.events.find((e: any) => e.eventCode && e.eventCode.toUpperCase() === cleanCode)
+          if (ev) {
+            return {
+              workspaceId: ws.id,
+              displayName: ws.display_name,
+              eventKey: ev.key,
+              eventTitle: ev.title || ev.key
+            }
+          }
+        }
+      } catch {}
+    }
+    return null
+  }
+
+  // Fetch events for workspace from JSON configuration and show inline keyboard
+  async function askWhichEvent(toChatId: string, workspaceId: string, displayName: string) {
+    const wsRow = await c.env.DB.prepare(
+      'SELECT config FROM workspaces WHERE id = ?'
+    ).bind(workspaceId).first<{ config: string }>()
+
+    let events: Array<{ key: string; title: string }> = []
+    try {
+      const cfg = JSON.parse(wsRow?.config || '{}')
+      if (Array.isArray(cfg.events)) {
+        events = cfg.events.map((e: any) => ({
+          key: e.key,
+          title: e.title || e.key
+        }))
+      }
+    } catch {}
+
     if (!events.length) {
       await sendMsg(toChatId, 'No events are set up for this wedding yet. Please contact the couple. 🙏')
       return
@@ -1174,8 +1355,8 @@ app.post('/api/telegram/webhook', async (c) => {
     for (let i = 0; i < events.length; i += 2) {
       rows.push(
         events.slice(i, i + 2).map(ev => ({
-          text: ev.name,
-          callback_data: `evt:${ev.event_key}`,
+          text: ev.title,
+          callback_data: `evt:${ev.key}`,
         }))
       )
     }
@@ -1220,9 +1401,17 @@ app.post('/api/telegram/webhook', async (c) => {
       }
 
       // Get event name so we can confirm it in the message
-      const ev = await c.env.DB.prepare(
-        'SELECT name FROM events WHERE workspace_id = ? AND event_key = ?'
-      ).bind(session.workspace_id, chosenKey).first<{ name: string }>()
+      let eventName = chosenKey
+      try {
+        const wsRow = await c.env.DB.prepare(
+          'SELECT config FROM workspaces WHERE id = ?'
+        ).bind(session.workspace_id).first<{ config: string }>()
+        if (wsRow) {
+          const cfg = JSON.parse(wsRow.config || '{}')
+          const foundEv = (cfg.events as any[] | undefined)?.find(e => e.key === chosenKey)
+          if (foundEv?.title) eventName = foundEv.title
+        }
+      } catch {}
 
       // Persist chosen event and refresh activity timestamp
       await c.env.DB.prepare(
@@ -1243,7 +1432,7 @@ app.post('/api/telegram/webhook', async (c) => {
         body: JSON.stringify({
           chat_id: cbChatId,
           message_id: cbMsgId,
-          text: `✅ <b>${ev?.name ?? chosenKey}</b> selected!\n\nSend your photos now — you can send as many as you like. 📸`,
+          text: `✅ <b>${eventName}</b> selected!\n\nSend your photos now — you can send as many as you like. 📸`,
           parse_mode: 'HTML',
         }),
       })
@@ -1295,6 +1484,19 @@ app.post('/api/telegram/webhook', async (c) => {
       return c.json({ ok: true })
     }
 
+    // ── 6-Character Event Code Deep Link ──
+    const codeMatch = await findEventByCode(payload)
+    if (codeMatch) {
+      await c.env.DB.prepare(
+        `INSERT OR REPLACE INTO telegram_sessions
+           (chat_id, workspace_id, event_key, last_activity_at, created_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+      ).bind(chatId, codeMatch.workspaceId, codeMatch.eventKey).run()
+
+      await reply(`Connected to <b>${codeMatch.displayName}</b>'s wedding! 🎊\n\n📸 Album: <b>${codeMatch.eventTitle}</b>\n\nSend your photos or videos now — they'll appear in the gallery after review.`)
+      return c.json({ ok: true })
+    }
+
     // ── Legacy per-event token (old QR codes keep working) ──
     const tokenRow = await c.env.DB.prepare(
       'SELECT workspace_id, event_key FROM telegram_tokens WHERE token = ?'
@@ -1343,9 +1545,9 @@ app.post('/api/telegram/webhook', async (c) => {
       last_activity_at: string | null
     }>()
 
-    // Never scanned a QR
+    // Never scanned a QR or provided a code
     if (!session) {
-      await reply('Please scan the QR code at the event to get started first! 📸')
+      await reply('Welcome to Mimries! 💍\n\nPlease enter your 6-character Event Code (e.g. HALDI1) or scan the event QR code first so we know where to save your photos! 📸')
       return c.json({ ok: true })
     }
 
@@ -1435,8 +1637,26 @@ app.post('/api/telegram/webhook', async (c) => {
       last_activity_at: string | null
     }>()
 
+    // Check if the text is a 6-character event code to connect or change events
+    if (!session || !session.event_key) {
+      const maybeCode = message.text.toUpperCase().trim().replace(/[^A-Z0-9]/g, "")
+      if (maybeCode.length === 6) {
+        const codeMatch = await findEventByCode(maybeCode)
+        if (codeMatch) {
+          await c.env.DB.prepare(
+            `INSERT OR REPLACE INTO telegram_sessions
+               (chat_id, workspace_id, event_key, last_activity_at, created_at)
+             VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+          ).bind(chatId, codeMatch.workspaceId, codeMatch.eventKey).run()
+
+          await reply(`✅ Connected to <b>${codeMatch.displayName}</b>'s wedding!\n\n📸 Album: <b>${codeMatch.eventTitle}</b>\n\nSend your photos or videos now — they'll appear in the gallery after review. 🎊`)
+          return c.json({ ok: true })
+        }
+      }
+    }
+
     if (!session) {
-      await reply('Please scan the QR code at the event to get started! 📸')
+      await reply('Welcome to Mimries! 💍\n\nPlease enter your 6-character Event Code (e.g. HALDI1) or scan the event QR code to connect and start sending photos! 📸')
       return c.json({ ok: true })
     }
 
@@ -1457,7 +1677,7 @@ app.post('/api/telegram/webhook', async (c) => {
       const ws = await c.env.DB.prepare(
         'SELECT display_name FROM workspaces WHERE id = ?'
       ).bind(session.workspace_id).first<{ display_name: string }>()
-      await reply('☝️ Please pick an event first!')
+      await reply('☝️ Please pick an event first, or enter your 6-character Event Code!')
       await askWhichEvent(chatId, session.workspace_id, ws?.display_name ?? '')
       return c.json({ ok: true })
     }
